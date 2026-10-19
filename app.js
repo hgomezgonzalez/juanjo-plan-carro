@@ -7,7 +7,10 @@
   const NOW_YEAR = 2026 + 9.5 / 12; // mediados de octubre de 2026
   const BUDGET_MAX = 15000;
   const VERD = { good: ["good", "✓ Recomendado"], warn: ["warn", "! Con cuidado"], bad: ["bad", "✕ Descartar"] };
-  const DEFAULTS = { car: "A", price: 14987, down: 3000, term: 60, apr: 7.5, ins: 350, miles: 700, gas: 4.25, other: 40, income: 250, family: 0, save: 200, goal: 5000, reserve: 1000, cutPrice: 25 };
+  const DEFAULTS = { car: "A", price: 14987, down: 3000, term: 60, apr: 7.5, ins: 350, miles: 700, gas: 4.25, other: 40, income: 250, family: 0, save: 200, goal: 5000, reserve: 1000, cutPrice: 25,
+    wage: 18, hours: 28, tips: 0, tax: 12, buffer: 100, extraOn: false, season: "school" };
+  const WEEKS = 52 / 12;
+  const LEGAL = { school: 40, summer: 50 };
   const STORE_KEY = "juanjo.added.v1";
 
   // Centroides aproximados de ZIP de 3 dígitos (NJ, NY, PA, CT) para estimar distancia.
@@ -133,7 +136,16 @@
     const interest = p * s.term - loan;
     return { o, down, loan, p, ins, gas, maint, other, total, interest };
   }
-  const budget = () => S.income + S.family;
+  // Ingreso neto mensual del trabajo después de clase.
+  const netPerHour = () => S.wage * (1 - S.tax / 100);
+  const extraNet = () => (S.wage * S.hours + S.tips) * (1 - S.tax / 100) * WEEKS;
+  const income = () => S.income + (S.extraOn ? extraNet() : 0);
+  const budget = () => income() + S.family;
+  // Horas por semana para cubrir un costo mensual más el margen, contando ingreso actual, familia y propinas.
+  function hoursFor(total) {
+    const weekly = (total + S.buffer - S.income - S.family) / WEEKS - S.tips * (1 - S.tax / 100);
+    return Math.max(0, weekly / netPerHour());
+  }
 
   // Puntaje Juanjo: cada criterio 0–100.
   function scoreParts(c, m) {
@@ -233,7 +245,7 @@
   }
   function draw(key) { if (seen[key] && drawers[key]) drawers[key](); }
   function drawSeen() { Object.keys(drawers).forEach(draw); }
-  const CANVAS = { donut: "cDonut", equity: "cEquity", when: "cWhen", interest: "cInterest", radar: "cRadar", cmpbar: "cCmpBar", tco: "cTco" };
+  const CANVAS = { hours: "cHours", donut: "cDonut", equity: "cEquity", when: "cWhen", interest: "cInterest", radar: "cRadar", cmpbar: "cCmpBar", tco: "cTco" };
   function watchCharts() {
     if (!("IntersectionObserver" in window)) { Object.keys(CANVAS).forEach(k => { seen[k] = true; }); drawSeen(); return; }
     const io = new IntersectionObserver((entries) => {
@@ -260,12 +272,13 @@
     renderVerdict(car, m);
     renderHero(car, m);
     renderCuts(m);
+    renderWork(car, m);
     renderOtd(car, m);
     renderDonutLegend(m);
     renderGoal();
     renderMatrix(car);
     renderReco();
-    ["donut", "equity", "when", "interest"].forEach(draw);
+    ["donut", "equity", "when", "interest", "hours"].forEach(draw);
     scheduleHeavy();
   }
   // Tarjetas con foto: se redibujan cuando el usuario deja de mover los controles.
@@ -293,9 +306,9 @@
     $("kpiGapBox").className = "kpi hero-k " + (st === "bad" ? "" : st);
     set("kpiGapLabel", gap <= 0 ? "Le sobra cada mes" : "Le falta cada mes");
     set("kpiGap", fmt(Math.abs(gap)));
-    set("kpiGapSub", `Disponible: ${fmt(budget())}/mes (Juan ${fmt(S.income)} + familia ${fmt(S.family)})`);
+    set("kpiGapSub", `Disponible: ${fmt(budget())}/mes (Juan ${fmt(income())}${S.extraOn ? " con trabajo extra" : ""} + familia ${fmt(S.family)})`);
     set("kpiTotal", fmt(m.total));
-    set("kpiTotalSub", S.income > 0 ? `${Math.round(m.total / S.income * 100)}% del ingreso de Juan` : "Sin ingreso");
+    set("kpiTotalSub", income() > 0 ? `${Math.round(m.total / income() * 100)}% del ingreso de Juan` : "Sin ingreso");
     set("kpiPmt", fmt(m.p)); set("kpiPmtSub", `${S.term} meses sobre ${fmt(m.loan)} financiados`);
     set("kpiInt", fmt(m.interest)); set("kpiIntSub", `Pagará ${fmt(m.p * S.term + m.down)} por un carro de ${fmt(m.o.total)}`);
   }
@@ -309,14 +322,17 @@
       $("verdictTitle").textContent = "Este carro no sirve en New Jersey";
       $("verdictText").textContent = "Funciona con hidrógeno y en NJ no hay estaciones públicas. Elige otro carro arriba.";
     } else if (st === "bad") {
-      $("verdictTitle").textContent = `Hoy no es viable solo con su ingreso: faltan ${fmt(gap)} cada mes`;
-      $("verdictText").textContent = `Tener el ${car.name} cuesta ${fmt(m.total)} al mes. El seguro solo (${fmt(m.ins)}) ya ${m.ins > S.income ? "supera" : "se come casi todo"} lo que gana Juan (${fmt(S.income)}). Para hacerlo viable hace falta que la familia aporte la diferencia, que Juan suba su ingreso (por ejemplo después de graduarse en junio de 2027), o esperar y ahorrar para una inicial más grande (sección 3).`;
+      const hn = hoursFor(m.total);
+      $("verdictTitle").textContent = S.extraOn ? `Aun con ${S.hours} h de trabajo extra faltan ${fmt(gap)} cada mes` : `Hoy no es viable solo con su ingreso: faltan ${fmt(gap)} cada mes`;
+      $("verdictText").textContent = `Tener el ${car.name} cuesta ${fmt(m.total)} al mes. El seguro solo (${fmt(m.ins)}) ya ${m.ins > income() ? "supera" : "se come buena parte de"} lo que gana Juan (${fmt(income())}). Con el trabajo después de clase a ${fmt(S.wage)} la hora necesitaría unas ${hn.toFixed(1).replace(".", ",")} horas por semana (sección 2). Otras salidas: que la familia aporte la diferencia, o esperar y ahorrar para una inicial más grande (sección 4).`;
     } else if (st === "warn") {
       $("verdictTitle").textContent = `Casi: faltan ${fmt(gap)} al mes`;
       $("verdictText").textContent = `El plan queda justo. Una inicial un poco más grande, un seguro con descuentos o un carro más barato lo cierran. Mantén el colchón de ${fmt(S.reserve)}.`;
     } else {
       $("verdictTitle").textContent = `Viable: sobran ${fmt(-gap)} al mes`;
-      $("verdictText").textContent = `Con este escenario el dinero disponible cubre el costo total del carro. Mantén el colchón de ${fmt(S.reserve)} para el deducible o una reparación.`;
+      $("verdictText").textContent = S.extraOn
+        ? `Trabajando ${S.hours} horas por semana a ${fmt(S.wage)} la hora, Juan gana unos ${fmt(income())} netos al mes y el carro cuesta ${fmt(m.total)}. Le bastarían unas ${hoursFor(m.total).toFixed(1).replace(".", ",")} horas por semana; lo demás es ahorro. Ojo: ese trabajo no está garantizado, no firmes el crédito hasta tener el empleo y 2 o 3 pagos recibidos.`
+        : `Con este escenario el dinero disponible cubre el costo total del carro. Mantén el colchón de ${fmt(S.reserve)} para el deducible o una reparación.`;
     }
   }
 
@@ -353,7 +369,7 @@
   const SCISSORS = '<svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M8.6 7.6 20 18M8.6 16.4 20 6M12 12h.01"/></g></svg>';
   function renderCuts(m) {
     const per = S.cutPrice;
-    const have = Math.round(S.income / per), need = Math.ceil(m.total / per);
+    const have = Math.round(income() / per), need = Math.ceil(m.total / per);
     const famCuts = Math.round(S.family / per);
     const shown = Math.min(Math.max(need, have), 60);
     let icons = "";
@@ -370,6 +386,120 @@
     $("meterL1").textContent = `Verde: tu dinero ${fmt(budget())}`;
     $("meterL2").textContent = `Raya: el carro ${fmt(m.total)}`;
   }
+
+
+  const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+  const hh = (x) => { const h = Math.floor(x), mm = Math.round((x - h) * 60); const ap = h >= 12 ? "pm" : "am"; const h12 = ((h + 11) % 12) + 1; return `${h12}${mm ? ":" + String(mm).padStart(2, "0") : ""} ${ap}`; };
+  const h1 = (x) => x.toFixed(1).replace(".", ",").replace(",0", "");
+  function renderWork(car, m) {
+    const set = (id, t) => { $(id).textContent = t; };
+    set("wageOut", "$" + S.wage.toFixed(2).replace(".", ",")); set("hoursOut", h1(S.hours) + " h");
+    set("tipsOut", fmt(S.tips)); set("taxOut", h1(S.tax) + "%"); set("bufferOut", fmt(S.buffer));
+    set("scenToday", fmt(S.income) + "/mes");
+    set("scenExtra", `+${fmt(extraNet())}/mes`);
+    document.querySelectorAll("#scen button").forEach(b => b.setAttribute("aria-pressed", String((b.dataset.v === "1") === S.extraOn)));
+    document.querySelectorAll("#season button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === S.season)));
+    const cap = LEGAL[S.season];
+    const need = car.h2 ? Infinity : hoursFor(m.total);
+    const weekGross = S.wage * S.hours + S.tips, weekNet = weekGross * (1 - S.tax / 100);
+    const monthNet = weekNet * WEEKS;
+    const st = need <= 15 ? "good" : need <= 25 ? "warn" : "bad";
+    $("kNeedBox").className = "kpi hero-k " + (st === "bad" ? "" : st);
+    set("kNeed", isFinite(need) ? h1(Math.ceil(need * 2) / 2) + " h" : "—");
+    set("kNeedSub", isFinite(need) ? `= ${h1(need * WEEKS)} h al mes para cubrir ${fmt(m.total + S.buffer)} (carro + margen)` : "Este carro no se puede usar en NJ");
+    set("kWeek", fmt(weekNet));
+    set("kWeekSub", `${fmt(weekGross)} brutos − ${h1(S.tax)}% de descuentos`);
+    set("kMonth", fmt(monthNet));
+    set("kMonthSub", `${h1(S.hours * WEEKS)} horas al mes · más ${fmt(S.income)} de lo de hoy`);
+    const left = S.income + S.family + monthNet - m.total;
+    set("kLeft", fmt(left));
+    set("kLeftSub", left >= S.buffer ? "Después de pagar todo el carro" : left >= 0 ? "Alcanza, pero sin margen de seguridad" : "No alcanza para el carro");
+
+    // Barra de esfuerzo: 0–50 h
+    const MAXH = 50, pct = (h) => (clamp(h, 0, MAXH) / MAXH * 100).toFixed(2) + "%";
+    const zones = [[15, "var(--good)", .55], [25, "var(--warn)", .65], [cap, "var(--s2)", .6], [MAXH, "var(--bad)", .7]];
+    let prev = 0, zhtml = "";
+    zones.forEach(([to, col, op]) => { if (to > prev) { zhtml += `<div class="z" style="width:${((to - prev) / MAXH * 100).toFixed(2)}%;background:${col};opacity:${op}"></div>`; prev = to; } });
+    const mk = (h, cls, label) => `<div class="mk ${cls}${h > MAXH * 0.62 ? " flip" : ""}" style="left:${pct(h)}"><span>${label}</span></div>`;
+    zhtml += isFinite(need) ? mk(need, "need", `Necesitas ${h1(Math.ceil(need * 2) / 2)} h`) : "";
+    if (S.extraOn || S.hours > 0) zhtml += mk(S.hours, "", `Planeas ${h1(S.hours)} h`);
+    $("effortTrack").innerHTML = zhtml;
+    $("effortScale").innerHTML = [...new Set([0, 15, 25, cap, 50])].map(h => `<span style="left:${pct(h)}">${h} h</span>`).join("");
+    let txt;
+    if (!isFinite(need)) txt = "Este carro funciona con hidrógeno y no se puede usar en NJ.";
+    else if (need === 0) txt = "Con lo que ganas hoy (más el aporte de la familia) ya se cubre el carro: no necesitas horas extra.";
+    else if (need <= 15) txt = `Liviano: ${h1(Math.ceil(need * 2) / 2)} horas por semana se pueden combinar con clases sin problema, por ejemplo 2 tardes y el sábado.`;
+    else if (need <= 25) txt = `Exigente: ${h1(Math.ceil(need * 2) / 2)} horas por semana son 3–4 tardes más el sábado. Se puede, pero cuida las notas: el descuento de buen estudiante del seguro depende de ellas.`;
+    else if (need <= cap) txt = `Pesado: ${h1(Math.ceil(need * 2) / 2)} horas por semana con clases es casi un trabajo de tiempo completo. Cualquier semana floja deja el pago en riesgo. Considera un carro más barato, más inicial o un aporte de la familia.`;
+    else txt = `No es posible: necesitarías ${h1(need)} horas por semana y la ley de NJ permite a un menor de 18 hasta ${cap} en ${S.season === "school" ? "época de clases" : "verano"}.`;
+    if (S.extraOn && S.hours > cap) txt += ` Ojo: las ${h1(S.hours)} horas que planeas superan el máximo de ${cap}.`;
+    $("effortText").textContent = txt;
+
+    // Semana: sábado hasta 8 h (9 am), entre semana desde 3:30 pm hasta 5 h por día.
+    const planned = S.hours;
+    const sat = Math.min(8, planned);
+    const rest = Math.max(0, planned - sat);
+    const perDay = rest / 5;
+    const fits = Math.min(perDay, 5);
+    const needLeft = { v: isFinite(need) ? need : 0 };
+    const dayHours = [fits, fits, fits, fits, fits, sat];
+    const overDay = Math.max(0, perDay - 5);
+    $("week").innerHTML = DAYS.map((d, i) => {
+      const hrs = dayHours[i], start = i === 5 ? 9 : 15.5;
+      const extra = i < 5 ? overDay : 0;
+      let cells = "";
+      const slots = Math.ceil((hrs + extra) * 2) / 2;
+      for (let k = 0; k < Math.max(8, Math.ceil(slots)); k++) {
+        const amt = clamp(slots - k, 0, 1);
+        if (amt <= 0) { cells += "<i></i>"; continue; }
+        let cls;
+        if (k >= Math.ceil(hrs)) cls = "over";
+        else if (needLeft.v > 0) { cls = "car"; needLeft.v -= amt; } else cls = "me";
+        cells += `<i class="${cls}${amt < 1 ? " half" : ""}"></i>`;
+      }
+      const tm = hrs > 0 ? `${hh(start)}–${hh(start + hrs)}` : "Libre";
+      return `<div class="day"><span class="dn">${d}</span><span class="tm">${tm}${extra > 0 ? `<br><b style="color:var(--bad-ink)">+${h1(extra)} h no caben</b>` : ""}</span><div class="cells">${cells}</div></div>`;
+    }).join("");
+
+    // Reparto del sueldo del mes
+    const totalIn = S.income + monthNet;
+    const famPart = Math.min(S.family, m.total);
+    const carPart = Math.max(0, Math.min(m.total - famPart, totalIn));
+    const bufPart = Math.max(0, Math.min(S.buffer, totalIn - carPart));
+    const youPart = Math.max(0, totalIn - carPart - bufPart);
+    const short = Math.max(0, m.total - famPart - totalIn);
+    const parts = [["Paga el carro", carPart, "var(--s1)"], ["Margen de seguridad", bufPart, "var(--s4)"], ["Para ti y tu ahorro", youPart, "var(--s3)"], ["Falta para el carro", short, "var(--bad)"]].filter(p => p[1] > 0.5);
+    const tot = parts.reduce((a, p) => a + p[1], 0) || 1;
+    $("split").innerHTML = parts.map(p => `<div style="flex:${p[1] / tot};background:${p[2]}" title="${p[0]}: ${fmt(p[1])}">${p[1] / tot > .12 ? fmt(p[1]) : ""}</div>`).join("");
+    const perTen = totalIn > 0 ? Math.round(carPart / totalIn * 10) : 0;
+    $("splitLegend").innerHTML = parts.map(p => `<span><i class="sw" style="background:${p[2]}"></i>${p[0]}: ${fmt(p[1])}</span>`).join("")
+      + (totalIn > 0 ? `<span>De cada $10 que ganas, ${short > 0 ? "todos" : "$" + perTen} se van al carro${famPart ? ` (la familia pone ${fmt(famPart)})` : ""}.</span>` : "");
+  }
+  drawers.hours = () => {
+    const list = ALL.filter(c => !c.h2 && (c.verdict !== "bad" || c.id === S.car)).map(c => ({ c, h: hoursFor(c._m.total) })).sort((a, b) => a.h - b.h);
+    $("hoursBox").style.height = Math.max(240, list.length * 32 + 60) + "px";
+    const cap = LEGAL[S.season];
+    const o = baseOpts();
+    o.indexAxis = "y";
+    o.interaction = { mode: "index", axis: "y", intersect: false };
+    o.scales = {
+      x: { beginAtZero: true, suggestedMax: Math.max(cap + 2, S.hours + 2), grid: { color: css("--line") }, border: { display: false }, ticks: { color: css("--muted"), callback: (v) => v + " h" } },
+      y: { grid: { display: false }, border: { color: css("--line") }, ticks: { color: css("--ink2"), font: { weight: 600 } } }
+    };
+    o.plugins.tooltip.callbacks = { label: (c) => ` ${h1(c.parsed.x)} h por semana (${fmt(list[c.dataIndex].c._m.total)} al mes)` };
+    const col = css("--s1");
+    upsert("hours", "cHours", {
+      type: "bar",
+      data: { labels: list.map(x => x.c.name), datasets: [{ label: "Horas por semana", data: list.map(x => x.h), backgroundColor: list.map(x => x.c.id === S.car ? css("--s2") : col), borderRadius: 4, barThickness: 18 }] },
+      options: o,
+      plugins: [{ id: "lines", afterDatasetsDraw(ch) {
+        const { top, bottom } = ch.chartArea, ctx = ch.ctx, x = ch.scales.x;
+        const line = (v, color, label, dash) => { const px = x.getPixelForValue(v); ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dash); ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, bottom); ctx.stroke(); ctx.fillStyle = color; ctx.font = `700 12px ${css("--f-body")}`; ctx.textAlign = "right"; ctx.fillText(label, px - 4, top + 12); ctx.restore(); };
+        line(cap, css("--bad"), `Máximo legal ${cap} h`, [6, 4]);
+        if (S.hours > 0) line(S.hours, css("--s1"), `Planeas ${h1(S.hours)} h`, []);
+      } }]
+    });
+  };
 
   function renderOtd(car, m) {
     const o = m.o;
@@ -636,7 +766,7 @@
     const bestAdded = ALL.filter(c => c.src === "added" && c.score > (a ? a.score : 0))[0];
     $("recoText").innerHTML = `<b>Carro recomendado: 2023 Toyota Corolla LE por $14.987</b> en Trophy Auto Lounge, South Amboy (a 3 millas de casa). Es el más barato de mantener de la lista: el seguro de un Corolla es de los más bajos para adolescentes, hace unas 35 millas por galón, tiene el costo de reparación más bajo y es el que menos valor pierde. Sin accidentes, un dueño y $1.546 por debajo del mercado. Segunda opción: el 2022 Corolla LE del mismo lote ($14.297). De los carros que vio Juan, el más sensato es el <b>2024 Nissan Sentra SV certificado</b> ($15.689 en Hackensack), por la garantía de motor hasta 100k millas.`
       + (bestAdded ? `<br><br><b>Ojo:</b> el carro que añadiste, ${esc(bestAdded.name)}, saca ${bestAdded.score} puntos, más que el Corolla. Pide la verificación completa antes de decidir.` : "")
-      + `<br><br><b>Sobre el dinero:</b> con la configuración actual el Corolla cuesta ${fmt(a._m.total)} al mes en total. Con ${fmt(S.income)} de ingreso, a Juan le faltan unos ${fmt(Math.max(0, a._m.total - budget()))} al mes. La decisión real no es qué carro, sino quién cubre el seguro. Si la familia asume el seguro y Juan paga la cuota, gasolina y mantenimiento con su ingreso más horas, el plan funciona. Si no, lo prudente es esperar a la graduación, ahorrar y comprar con una inicial de $5.000 o más.`;
+      + `<br><br><b>Sobre el dinero:</b> con la configuración actual el Corolla cuesta ${fmt(a._m.total)} al mes en total. Con ${fmt(income())} de ingreso, a Juan le faltan unos ${fmt(Math.max(0, a._m.total - budget()))} al mes. La decisión real no es qué carro, sino quién cubre el seguro. Si la familia asume el seguro y Juan paga la cuota, gasolina y mantenimiento con su ingreso más horas, el plan funciona. Si no, lo prudente es esperar a la graduación, ahorrar y comprar con una inicial de $5.000 o más.`;
   }
 
   // ---------- Añadir carro por link ----------
@@ -802,7 +932,7 @@
   }
 
   // ---------- Eventos ----------
-  const RANGES = ["price", "down", "apr", "ins", "miles", "gas", "other", "income", "family", "save", "goal", "reserve", "cutPrice"];
+  const RANGES = ["price", "down", "apr", "ins", "miles", "gas", "other", "income", "family", "save", "goal", "reserve", "cutPrice", "wage", "hours", "tips", "tax", "buffer"];
   function syncInputs() { RANGES.forEach(k => { $(k).value = S[k]; }); }
   function pickCar(id) {
     const c = carById(id); if (!c || c.h2) { if (c && c.h2) toast("Este carro es de hidrógeno: no se puede usar en NJ."); return; }
@@ -815,6 +945,11 @@
     $("car").addEventListener("change", (e) => pickCar(e.target.value));
     $("term").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.term = +b.dataset.v; schedule(); } });
     $("strip").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickCar(b.dataset.pick); });
+    $("scen").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.extraOn = b.dataset.v === "1"; if (S.extraOn && S.hours === 0) S.hours = 28; syncInputs(); schedule(); } });
+    $("season").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.season = b.dataset.v; schedule(); } });
+    $("h500").addEventListener("click", () => { S.hours = Math.round(500 / S.wage * 2) / 2; S.extraOn = true; syncInputs(); schedule(); toast(`${h1(S.hours)} h a ${fmt(S.wage)} ≈ ${fmt(S.hours * S.wage)} brutos por semana.`); });
+    $("hNeed").addEventListener("click", () => { const c = carById(S.car); S.hours = Math.min(50, Math.ceil(hoursFor(monthly(c, S.price, S).total) * 2) / 2); S.extraOn = true; syncInputs(); schedule(); });
+    $("hours").addEventListener("input", () => { if (!S.extraOn) { S.extraOn = true; } });
     $("resetBtn").addEventListener("click", () => { const car = S.car, price = carById(car).price; Object.assign(S, DEFAULTS, { car, price }); syncInputs(); schedule(); toast("Valores iniciales restaurados."); });
     $("gallery").addEventListener("click", async (e) => {
       const sim = e.target.closest("[data-sim]"), rm = e.target.closest("[data-remove]"), ver = e.target.closest("[data-verify]");

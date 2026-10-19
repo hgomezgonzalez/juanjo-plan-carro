@@ -33,7 +33,7 @@
       <div><b>Dayana</b>Co-firmante del crédito</div>
     </div>
     <nav class="nav" aria-label="Secciones">
-      <a href="#tu-carro">Tu carro</a><a href="#simulador">Simulador</a><a href="#cuando">¿Cuándo comprar?</a><a href="#inicial">Inicial y plazo</a><a href="#comparar">Comparar</a><a href="#carros">Todos los carros</a><a href="#plan">Plan</a>
+      <a href="#tu-carro">Tu carro</a><a href="#trabajo">Trabajo</a><a href="#simulador">Simulador</a><a href="#cuando">¿Cuándo comprar?</a><a href="#inicial">Inicial y plazo</a><a href="#comparar">Comparar</a><a href="#carros">Todos los carros</a><a href="#plan">Plan</a>
     </nav>
   </div>
 </header>
@@ -73,10 +73,90 @@
   </div>
 </section>
 
-<!-- 2. Simulador -->
+<!-- 2. Trabajo -->
+<section id="trabajo">
+  <div class="sec-head">
+    <span class="eyebrow">2 · Tu trabajo</span>
+    <h2>¿Cuántas horas tendrías que trabajar para pagar el carro sin problemas?</h2>
+    <p class="lede">Escenario: trabajar en una barbería después de clase, con unos $500 a la semana adicionales. No está garantizado, así que compáralo con lo que ganas hoy. Las horas cubren el costo total del carro más un margen de seguridad, y ya restan los descuentos de nómina.</p>
+  </div>
+  <div class="seg2" id="scen" role="group" aria-label="Escenario de ingreso">
+    <button type="button" data-v="0">Solo lo de hoy · <span id="scenToday"></span></button>
+    <button type="button" data-v="1">Con trabajo después de clase · <span id="scenExtra"></span></button>
+  </div>
+  <div class="sim">
+    <div class="panel">
+      <div class="group-title">El trabajo</div>
+      <div class="field">
+        <div class="field-row"><label for="wage">Pago por hora</label><output id="wageOut"></output></div>
+        <input type="range" id="wage" min="15.92" max="30" step="0.25">
+        <span class="hint">Mínimo legal en NJ 2026: $15,92.</span>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="hours">Horas por semana</label><output id="hoursOut"></output></div>
+        <input type="range" id="hours" min="0" max="50" step="0.5">
+        <div class="car-actions"><button type="button" class="btn ghost" id="h500">Meta $500/semana</button><button type="button" class="btn ghost" id="hNeed">Solo lo necesario</button></div>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="tips">Propinas por semana</label><output id="tipsOut"></output></div>
+        <input type="range" id="tips" min="0" max="300" step="5">
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="tax">Descuentos de nómina</label><output id="taxOut"></output></div>
+        <input type="range" id="tax" min="0" max="25" step="0.5">
+        <span class="hint">Seguro social y Medicare (7,65%), más impuestos federal y de NJ: ~12% para este nivel de ingreso.</span>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="buffer">Margen de seguridad al mes</label><output id="bufferOut"></output></div>
+        <input type="range" id="buffer" min="0" max="400" step="10">
+        <span class="hint">Para que una semana floja, un deducible o una llanta no te dejen sin pagar.</span>
+      </div>
+      <div class="field">
+        <span class="flabel">Temporada</span>
+        <div class="seg" id="season" role="group" aria-label="Temporada" style="grid-template-columns:1fr 1fr">
+          <button type="button" data-v="school">Con clases (máx. 40 h)</button><button type="button" data-v="summer">Verano (máx. 50 h)</button>
+        </div>
+      </div>
+    </div>
+    <div class="results">
+      <div class="kpis">
+        <div class="kpi hero-k" id="kNeedBox"><span class="l">Horas mínimas por semana</span><span class="v num" id="kNeed"></span><span class="s" id="kNeedSub"></span></div>
+        <div class="kpi"><span class="l">Ganas por semana</span><span class="v num" id="kWeek"></span><span class="s" id="kWeekSub"></span></div>
+        <div class="kpi"><span class="l">Ganas al mes (neto)</span><span class="v num" id="kMonth"></span><span class="s" id="kMonthSub"></span></div>
+        <div class="kpi"><span class="l">Te queda al mes</span><span class="v num" id="kLeft"></span><span class="s" id="kLeftSub"></span></div>
+      </div>
+      <div class="panel">
+        <h3>¿Qué tan pesado es?</h3>
+        <div class="effort" aria-label="Horas por semana frente a la carga recomendada">
+          <div class="effort-track" id="effortTrack"></div>
+          <div class="effort-scale" id="effortScale"></div>
+        </div>
+        <p class="note" id="effortText"></p>
+      </div>
+      <div class="panel">
+        <h3>Tu semana</h3>
+        <div class="legend-inline"><span><i class="sw" style="background:var(--s1)"></i>Horas que pagan el carro</span><span><i class="sw" style="background:var(--s3)"></i>Horas para ti y tu ahorro</span><span><i class="sw" style="background:var(--bad)"></i>No caben en un horario después de clase</span></div>
+        <div class="week" id="week"></div>
+        <p class="note">Entre semana: después de clase desde las 3:30 pm. Con licencia probatoria no puede manejar entre 11:01 pm y 5:00 am, así que el turno debe terminar con tiempo para llegar a casa.</p>
+      </div>
+      <div class="panel">
+        <h3>Tu sueldo del mes, repartido</h3>
+        <div class="split" id="split"></div>
+        <div class="legend-inline" id="splitLegend"></div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <h3>Horas por semana que necesitas para cada carro</h3>
+    <p class="note">Con la configuración actual del simulador. La raya azul son las horas que planeas trabajar; la roja, el máximo permitido en la temporada.</p>
+    <div class="chart-box" id="hoursBox" style="height:420px"><canvas id="cHours" role="img" aria-label="Horas semanales necesarias por carro"></canvas></div>
+  </div>
+</section>
+
+<!-- 3. Simulador -->
 <section id="simulador">
   <div class="sec-head">
-    <span class="eyebrow">2 · Simulador</span>
+    <span class="eyebrow">3 · Simulador</span>
     <h2>¿Cuánto cuesta de verdad tener el carro cada mes?</h2>
     <p class="lede">El costo mensual incluye la cuota del crédito y todo lo que cuesta mantener el carro: seguro, gasolina, mantenimiento, llantas, peajes y parqueo. Los valores iniciales son datos reales de octubre de 2026.</p>
   </div>
@@ -189,7 +269,7 @@
 <!-- 3. Cuándo -->
 <section id="cuando">
   <div class="sec-head">
-    <span class="eyebrow">3 · ¿Cuándo comprar?</span>
+    <span class="eyebrow">4 · ¿Cuándo comprar?</span>
     <h2>Si esperas y ahorras, ¿en qué mes cuadran las cuentas?</h2>
     <p class="lede">Cada mes que esperas, el ahorro crece (sube la inicial y baja la cuota) y el mismo tipo de carro se abarata un poco. Comprar tiene sentido cuando la línea azul baja hasta la verde.</p>
   </div>
@@ -209,7 +289,7 @@
 <!-- 4. Inicial y plazo -->
 <section id="inicial">
   <div class="sec-head">
-    <span class="eyebrow">4 · Inicial y plazo</span>
+    <span class="eyebrow">5 · Inicial y plazo</span>
     <h2>Cuánto pagar de inicial para que los intereses no pesen</h2>
     <p class="lede">Cada celda es la cuota del crédito y, debajo, el costo total del carro al mes. Verde: alcanza con el dinero disponible. Amarillo: faltan menos de $200. Rojo: faltan más. El recuadro negro es tu escenario actual.</p>
   </div>
@@ -227,7 +307,7 @@
 <!-- 5. Comparar -->
 <section id="comparar">
   <div class="sec-head">
-    <span class="eyebrow">5 · Comparar</span>
+    <span class="eyebrow">6 · Comparar</span>
     <h2>Dos carros, frente a frente</h2>
     <p class="lede">En el radar, más grande es mejor en cada punta. En las barras, más corto es más barato.</p>
   </div>
@@ -252,7 +332,7 @@
 <!-- 6. Todos los carros -->
 <section id="carros">
   <div class="sec-head">
-    <span class="eyebrow">6 · Todos los carros</span>
+    <span class="eyebrow">7 · Todos los carros</span>
     <h2>Los que vio Juan, las mejores opciones cerca y los que añadas</h2>
     <p class="lede" id="carsLede">Ordenados por puntaje. El costo al mes usa la configuración actual del simulador.</p>
   </div>
@@ -314,7 +394,7 @@
 <!-- 7. Plan -->
 <section id="plan">
   <div class="sec-head">
-    <span class="eyebrow">7 · Plan de compra</span>
+    <span class="eyebrow">8 · Plan de compra</span>
     <h2>Recomendación y pasos con fecha</h2>
   </div>
   <div class="callout" id="recoText"></div>
@@ -322,9 +402,9 @@
     <div class="steps">
       <div class="step"><div class="when">Oct–Nov 2026</div><div><h3>Cotizar el seguro antes de mirar más carros</h3><p>Es el gasto más grande y el que decide si el plan es viable. Dayana llama a su aseguradora y pide el costo de añadir a Juan con el VIN de 2 o 3 carros finalistas.</p><ul><li>Pedir descuento de buen estudiante (promedio B o mejor, hasta 15–25%) y de curso de manejo (5–15%).</li><li>Preguntar por programa de monitoreo (Snapshot, Steer Clear): 15–30% menos si maneja bien.</li><li>Comparar con 2 aseguradoras más (NJM, GEICO, Progressive, State Farm).</li></ul></div></div>
       <div class="step"><div class="when">Nov 2026</div><div><h3>Preaprobación del crédito en una cooperativa</h3><p>Raritan Bay FCU está en Sayreville (491 Raritan St; usados desde 5,92%). Affinity FCU ofrece desde 5,45%. Ir al concesionario con la tasa ya aprobada evita que suban el interés.</p><ul><li>Juan es menor de edad: en la práctica el crédito y el título quedan a nombre de Dayana, y él se añade después.</li><li>Cada cuota atrasada daña el crédito de Dayana, no el de Juan.</li></ul></div></div>
-      <div class="step"><div class="when">Mientras espera</div><div><h3>Ahorrar todo lo que pueda</h3><p>Sin carro no hay seguro ni gasolina. Cada mes de ahorro sube la inicial y baja la cuota (sección 3). Meta sugerida: inicial de $5.000 o más y un colchón de $1.000 aparte.</p></div></div>
+      <div class="step"><div class="when">Mientras espera</div><div><h3>Ahorrar todo lo que pueda</h3><p>Sin carro no hay seguro ni gasolina. Cada mes de ahorro sube la inicial y baja la cuota (sección 4). Meta sugerida: inicial de $5.000 o más y un colchón de $1.000 aparte.</p></div></div>
       <div class="step"><div class="when">Al elegir</div><div><h3>Revisar el carro antes de firmar</h3><ul><li>Pedir el reporte Carfax o AutoCheck completo; no aceptar “accidente reportado” sin detalles.</li><li>Inspección con un mecánico independiente ($100–200). Sí o sí en concesionarios independientes.</li><li>Buscar recalls abiertos por VIN en nhtsa.gov/recalls.</li><li>En Hyundai y Kia anteriores a 2022 con llave: exigir prueba de la actualización antirrobo.</li><li>Pedir el precio “out-the-door” por escrito: precio + doc fee + 6,625% de impuesto + título y registro. Nada de “paquetes” o protecciones extra.</li></ul></div></div>
-      <div class="step"><div class="when">Jun 2027</div><div><h3>Graduación</h3><p>Si pasa a trabajar más horas, el ingreso cambia todo: con $900–1.000 al mes el carro se vuelve viable sin ayuda. Prueba el control “Ingreso de Juan”.</p></div></div>
+      <div class="step"><div class="when">Jun 2027</div><div><h3>Graduación</h3><p>Si consigue el trabajo después de clase, el ingreso cambia todo. Revisa en la sección 2 cuántas horas por semana necesita para cada carro, y en verano (hasta 50 h) puede adelantar ahorro.</p></div></div>
     </div>
   </div>
   <div class="cols3">
@@ -344,6 +424,7 @@
     <li>Cooperativas: <a href="https://www.affinityfcu.com/personal-banking/borrow/auto-loans/auto-preapproval" target="_blank" rel="noopener">Affinity FCU</a>, <a href="https://www.creditunionsonline.com/trends-auto-loans-1463.html" target="_blank" rel="noopener">Raritan Bay FCU</a></li>
     <li>Registro y título NJ: <a href="https://www.nj.gov/mvc/vehicles/regfees.htm" target="_blank" rel="noopener">NJ MVC</a>; doc fee promedio NJ ~$711: <a href="https://otdcheck.com/guides/new-jersey-dealer-fees" target="_blank" rel="noopener">OTDCheck</a></li>
     <li>Reglas de licencia probatoria: <a href="https://www.nj.gov/mvc/about/gdlsafety.htm" target="_blank" rel="noopener">NJ MVC GDL</a></li>
+    <li>Horas de trabajo para menores de 18 (verano hasta 50 h): <a href="https://www.nj.gov/labor/myworkrights/worker-protections/workers_under_18/" target="_blank" rel="noopener">NJ Department of Labor</a>; salario mínimo 2026 $15,92: <a href="https://njbiz.com/new-jersey-sets-15-92-minimum-wage-for-2026/" target="_blank" rel="noopener">NJBIZ</a></li>
     <li>Reparaciones anuales por modelo: <a href="https://repairpal.com/cars/compare/toyota-corolla-vs-nissan-sentra" target="_blank" rel="noopener">RepairPal</a>; costos por milla: <a href="https://newsroom.aaa.com/wp-content/uploads/2025/09/AAA-Brochure-Your-Driving-Cost-9.2025.pdf" target="_blank" rel="noopener">AAA 2025</a></li>
     <li>Depreciación por modelo: <a href="https://www.iseecars.com/resale-value/compact-cars" target="_blank" rel="noopener">iSeeCars</a></li>
     <li>Decodificador de VIN y recalls: <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener">NHTSA vPIC</a>, <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener">NHTSA Recalls</a></li>
