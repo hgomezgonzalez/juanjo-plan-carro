@@ -7,7 +7,7 @@
   const NOW_YEAR = 2026 + 9.5 / 12; // mediados de octubre de 2026
   const BUDGET_MAX = 15000;
   const VERD = { good: ["good", "✓ Recomendado"], warn: ["warn", "! Con cuidado"], bad: ["bad", "✕ Descartar"] };
-  const DEFAULTS = { car: "A", price: 14987, down: 3000, term: 60, apr: 7.5, ins: 350, miles: 700, gas: 4.25, other: 40, income: 250, family: 0, save: 200, goal: 5000, reserve: 1000, cutPrice: 25,
+  const DEFAULTS = { car: "A", price: 14987, down: 3000, term: 60, apr: 7.5, ins: 350, miles: 700, gas: 4.25, other: 40, income: 800, family: 0, save: 500, goal: 5000, reserve: 1000, cutPrice: 25,
     wage: 18, hours: 28, tips: 0, tax: 12, buffer: 100, extraOn: false, season: "school" };
   const WEEKS = 52 / 12;
   const LEGAL = { school: 40, summer: 50 };
@@ -766,7 +766,15 @@
     const bestAdded = ALL.filter(c => c.src === "added" && c.score > (a ? a.score : 0))[0];
     $("recoText").innerHTML = `<b>Carro recomendado: 2023 Toyota Corolla LE por $14.987</b> en Trophy Auto Lounge, South Amboy (a 3 millas de casa). Es el más barato de mantener de la lista: el seguro de un Corolla es de los más bajos para adolescentes, hace unas 35 millas por galón, tiene el costo de reparación más bajo y es el que menos valor pierde. Sin accidentes, un dueño y $1.546 por debajo del mercado. Segunda opción: el 2022 Corolla LE del mismo lote ($14.297). De los carros que vio Juan, el más sensato es el <b>2024 Nissan Sentra SV certificado</b> ($15.689 en Hackensack), por la garantía de motor hasta 100k millas.`
       + (bestAdded ? `<br><br><b>Ojo:</b> el carro que añadiste, ${esc(bestAdded.name)}, saca ${bestAdded.score} puntos, más que el Corolla. Pide la verificación completa antes de decidir.` : "")
-      + `<br><br><b>Sobre el dinero:</b> con la configuración actual el Corolla cuesta ${fmt(a._m.total)} al mes en total. Con ${fmt(income())} de ingreso, a Juan le faltan unos ${fmt(Math.max(0, a._m.total - budget()))} al mes. La decisión real no es qué carro, sino quién cubre el seguro. Si la familia asume el seguro y Juan paga la cuota, gasolina y mantenimiento con su ingreso más horas, el plan funciona. Si no, lo prudente es esperar a la graduación, ahorrar y comprar con una inicial de $5.000 o más.`;
+      + `<br><br><b>Sobre el dinero:</b> ${moneyAdvice(a)}`;
+  }
+  function moneyAdvice(a) {
+    const total = a._m.total, gap = total - budget(), share = Math.round(total / Math.max(budget(), 1) * 100);
+    const extraH = hoursFor(total);
+    const hTxt = `${extraH.toFixed(1).replace(".", ",")} horas por semana a ${fmt(S.wage)}`;
+    if (gap > 0) return `con la configuración actual el Corolla cuesta ${fmt(total)} al mes en total y Juan tiene ${fmt(budget())}: faltan ${fmt(gap)}. Está muy cerca, pero se iría prácticamente todo su ingreso en el carro, sin margen para un deducible ni para ahorrar. Para cerrarlo con un margen de ${fmt(S.buffer)} necesitaría unas ${hTxt} de trabajo extra (sección 2), una inicial más grande o un carro más barato. Lo prudente es ahorrar unos meses más (sección 4) y firmar cuando la cuenta deje margen.`;
+    if (-gap < S.buffer) return `con la configuración actual el Corolla cuesta ${fmt(total)} al mes y Juan tiene ${fmt(budget())}: alcanza, pero solo sobran ${fmt(-gap)}. El carro se llevaría el ${share}% de su ingreso. Una semana floja o una reparación lo dejaría sin pagar. Conviene sumar unas horas de trabajo (sección 2) o subir la inicial antes de firmar.`;
+    return `con la configuración actual el Corolla cuesta ${fmt(total)} al mes y Juan tiene ${fmt(budget())}: le sobran ${fmt(-gap)} al mes (el carro se lleva el ${share}% de su ingreso). El plan funciona. Mantén el colchón de ${fmt(S.reserve)} y no firmes hasta tener el ingreso estable por 2 o 3 meses.`;
   }
 
   // ---------- Añadir carro por link ----------
