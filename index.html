@@ -33,7 +33,7 @@
       <div><b>Dayana</b>Co-firmante del crédito</div>
     </div>
     <nav class="nav" aria-label="Secciones">
-      <a href="#cuentas">Cuentas fáciles</a><a href="#tu-carro">Tu carro</a><a href="#trabajo">Trabajo</a><a href="#simulador">Simulador</a><a href="#cuando">¿Cuándo comprar?</a><a href="#inicial">Inicial y plazo</a><a href="#comparar">Comparar</a><a href="#carros">Todos los carros</a><a href="#plan">Plan</a>
+      <a href="#cuentas">Cuentas fáciles</a><a href="#tu-carro">Tu carro</a><a href="#trabajo">Trabajo</a><a href="#simulador">Simulador</a><a href="#cuando">¿Cuándo comprar?</a><a href="#inicial">Inicial y plazo</a><a href="#credito">Crédito e intereses</a><a href="#comparar">Comparar</a><a href="#carros">Todos los carros</a><a href="#plan">Plan</a>
     </nav>
   </div>
 </header>
@@ -366,10 +366,58 @@
   </div>
 </section>
 
-<!-- 5. Comparar -->
+<!-- 6. Crédito e intereses -->
+<section id="credito">
+  <div class="sec-head">
+    <span class="eyebrow">6 · Crédito e intereses</span>
+    <h2>¿Cuánto le pagas al banco solo por prestarte?</h2>
+    <p class="lede">Los <b>intereses</b> son el precio de pedir prestado: dinero que pagas de más y que no compra nada del carro. Dependen de tres cosas: <b>cuánto pides</b>, <b>en cuántos meses</b> lo pagas y <b>la tasa</b> que te da el banco. Toca un banco o un plazo y todo el simulador se ajusta.</p>
+  </div>
+
+  <div class="panel">
+    <h3>1. Elige dónde pedir el préstamo</h3>
+    <p class="note">La tasa depende sobre todo del <b>historial de crédito de Dayana</b>: Juan tiene 17, no puede firmar un préstamo solo, así que el crédito va a nombre de ella (o de los dos). Las tasas “desde” son para crédito excelente; con crédito regular suben.</p>
+    <div class="lenders" id="lenders" role="radiogroup" aria-label="Banco o tipo de préstamo"></div>
+  </div>
+
+  <div class="kpis loan-kpis" id="loanKpis"></div>
+
+  <div class="two">
+    <div class="panel">
+      <h3>2. Lo que pides vs. lo que terminas pagando</h3>
+      <p class="note">Barra verde: el préstamo. Barra roja: los intereses que se suman encima. Toca un plazo para usarlo.</p>
+      <div class="loanbars" id="loanBars"></div>
+    </div>
+    <div class="panel">
+      <h3>3. Lo mismo, cambiando de banco</h3>
+      <p class="note">Intereses totales del mismo préstamo y plazo en cada lugar. La diferencia es plata que te ahorras solo por elegir bien.</p>
+      <div class="chart-box" id="lenderBox"><canvas id="cLender" role="img" aria-label="Intereses totales por banco"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>4. Tabla: intereses según cuánto debas</h3>
+    <p class="note" id="debtNote"></p>
+    <div class="scroll"><table class="matrix debt" id="debtTable"></table></div>
+    <div class="legend-inline"><span><i class="sw" style="background:var(--seq1)"></i>Pocos intereses</span><span><i class="sw" style="background:var(--seq2)"></i>Bastantes</span><span><i class="sw" style="background:var(--seq4)"></i>Muchos</span><span><i class="sw" style="outline:2px solid var(--ink);background:transparent"></i>Tu caso</span></div>
+  </div>
+
+  <div class="callout">
+    <b>Cómo conseguir la tasa más baja:</b>
+    <ol class="tips">
+      <li><b>Pide preaprobación antes de ir al concesionario</b> (PenFed, Affinity o Raritan Bay, que está en Sayreville). Llegas con la tasa en la mano y el concesionario tiene que igualarla o ganarle.</li>
+      <li><b>El concesionario puede subirte la tasa</b> para ganar comisión. Si te ofrece más que tu preaprobación, usa la tuya.</li>
+      <li><b>Plazo corto = menos intereses.</b> 72 meses baja la cuota pero pagas mucho más y sigues debiendo más de lo que vale el carro.</li>
+      <li><b>Más inicial = menos deuda = menos intereses</b> (sección 5).</li>
+      <li><b>Antes de firmar</b>, Dayana puede ver su puntaje gratis en la app de su banco o tarjeta, y su reporte completo en annualcreditreport.com. Con un puntaje alto (más de 720 aprox.) se consiguen las mejores tasas.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- 7. Comparar -->
 <section id="comparar">
   <div class="sec-head">
-    <span class="eyebrow">6 · Comparar</span>
+    <span class="eyebrow">7 · Comparar</span>
     <h2>Dos carros, frente a frente</h2>
     <p class="lede">En el radar, más grande es mejor en cada punta. En las barras, más corto es más barato.</p>
   </div>
@@ -394,7 +442,7 @@
 <!-- 6. Todos los carros -->
 <section id="carros">
   <div class="sec-head">
-    <span class="eyebrow">7 · Todos los carros</span>
+    <span class="eyebrow">8 · Todos los carros</span>
     <h2>Los que vio Juan, las mejores opciones cerca y los que añadas</h2>
     <p class="lede" id="carsLede">Ordenados por puntaje. El costo al mes usa la configuración actual del simulador.</p>
   </div>
@@ -455,7 +503,7 @@
 <!-- 7. Plan -->
 <section id="plan">
   <div class="sec-head">
-    <span class="eyebrow">8 · Plan de compra</span>
+    <span class="eyebrow">9 · Plan de compra</span>
     <h2>Recomendación y pasos con fecha</h2>
   </div>
   <div class="callout" id="recoText"></div>
@@ -482,7 +530,7 @@
     <li>Seguro adolescente 17 años añadido a póliza (EE. UU.) ~$4.214/año: <a href="https://www.carinsurance.com/articles/car-insurance-17-year-old.aspx" target="_blank" rel="noopener">CarInsurance.com</a></li>
     <li>Seguro 17 años en NJ ~$6.068/año: <a href="https://www.moneygeek.com/insurance/auto/average-cost-car-insurance-new-jersey/" target="_blank" rel="noopener">MoneyGeek</a>; póliza propia: <a href="https://insurify.com/car-insurance/new-jersey/teenagers/" target="_blank" rel="noopener">Insurify</a></li>
     <li>Tasas de crédito usado Q2 2026 (prime 8,81%, promedio 11,19%): <a href="https://www.experian.com/blogs/ask-experian/used-car-loan-rates/" target="_blank" rel="noopener">Experian</a></li>
-    <li>Cooperativas: <a href="https://www.affinityfcu.com/personal-banking/borrow/auto-loans/auto-preapproval" target="_blank" rel="noopener">Affinity FCU</a>, <a href="https://www.creditunionsonline.com/trends-auto-loans-1463.html" target="_blank" rel="noopener">Raritan Bay FCU</a></li>
+    <li>Cooperativas: <a href="https://www.affinityfcu.com/personal-banking/borrow/auto-loans/auto-preapproval" target="_blank" rel="noopener">Affinity FCU</a>, <a href="https://www.creditunionsonline.com/trends-auto-loans-1463.html" target="_blank" rel="noopener">Raritan Bay FCU</a>; PenFed usados desde 4,79% (ago 2026): <a href="https://www.lendingtree.com/auto-loans-index" target="_blank" rel="noopener">LendingTree</a>; crédito regular y bajo (Q1 2026, 14,03% y 19,42%): <a href="https://www.experian.com/blogs/ask-experian/used-car-loan-rates/" target="_blank" rel="noopener">Experian</a></li>
     <li>Registro y título NJ: <a href="https://www.nj.gov/mvc/vehicles/regfees.htm" target="_blank" rel="noopener">NJ MVC</a>; doc fee promedio NJ ~$711: <a href="https://otdcheck.com/guides/new-jersey-dealer-fees" target="_blank" rel="noopener">OTDCheck</a></li>
     <li>Reglas de licencia probatoria: <a href="https://www.nj.gov/mvc/about/gdlsafety.htm" target="_blank" rel="noopener">NJ MVC GDL</a></li>
     <li>Horas de trabajo para menores de 18 (verano hasta 50 h): <a href="https://www.nj.gov/labor/myworkrights/worker-protections/workers_under_18/" target="_blank" rel="noopener">NJ Department of Labor</a>; salario mínimo 2026 $15,92: <a href="https://njbiz.com/new-jersey-sets-15-92-minimum-wage-for-2026/" target="_blank" rel="noopener">NJBIZ</a></li>

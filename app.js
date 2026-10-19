@@ -330,7 +330,7 @@
   }
   function draw(key) { if (seen[key] && drawers[key]) drawers[key](); }
   function drawSeen() { Object.keys(drawers).forEach(draw); }
-  const CANVAS = { hours: "cHours", donut: "cDonut", equity: "cEquity", when: "cWhen", interest: "cInterest", radar: "cRadar", cmpbar: "cCmpBar", tco: "cTco" };
+  const CANVAS = { hours: "cHours", donut: "cDonut", equity: "cEquity", when: "cWhen", interest: "cInterest", radar: "cRadar", cmpbar: "cCmpBar", tco: "cTco", lender: "cLender" };
   function watchCharts() {
     if (!("IntersectionObserver" in window)) { Object.keys(CANVAS).forEach(k => { seen[k] = true; }); drawSeen(); return; }
     const io = new IntersectionObserver((entries) => {
@@ -363,9 +363,10 @@
     renderDonutLegend(m);
     renderGoal();
     renderMatrix(car);
+    renderCredit(car, m);
     renderReco();
     renderGoal2();
-    ["donut", "equity", "when", "interest", "hours"].forEach(draw);
+    ["donut", "equity", "when", "interest", "hours", "lender"].forEach(draw);
     scheduleHeavy();
     saveStateSoon();
   }
@@ -708,6 +709,82 @@
         ctx.fillStyle = css("--ink2"); ctx.font = `600 12px ${css("--f-body")}`; ctx.fillText("Graduación", x + 4, top + 12); ctx.restore();
       } }]
     });
+  };
+
+  // ---------- Crédito: bancos, plazos e intereses ----------
+  // Tasas "desde" para usados (crédito excelente) y promedios por puntaje; ver Fuentes.
+  const LENDERS = [
+    { id: "penfed", n: "PenFed", t: "Cooperativa nacional: cualquiera se une con $5", apr: 4.79, k: "cu" },
+    { id: "affinity", n: "Affinity FCU", t: "Cooperativa de NJ (Basking Ridge)", apr: 5.45, k: "cu" },
+    { id: "raritan", n: "Raritan Bay FCU", t: "Cooperativa en Sayreville, cerca de casa", apr: 5.92, k: "cu" },
+    { id: "bank", n: "Banco o en línea", t: "Promedio con crédito bueno (661–780)", apr: 8.81, k: "bank" },
+    { id: "dealer", n: "Concesionario", t: "Promedio que paga la gente en EE. UU.", apr: 11.19, k: "dealer" },
+    { id: "fair", n: "Crédito regular", t: "Si el puntaje de Dayana es 601–660", apr: 14.03, k: "risk" },
+    { id: "poor", n: "Crédito bajo", t: "Si el puntaje es 501–600", apr: 19.42, k: "risk" },
+  ];
+  const KIND = { cu: "Cooperativa", bank: "Banco", dealer: "Concesionario", risk: "Riesgo" };
+  const lenderNow = () => LENDERS.find(l => Math.abs(l.apr - S.apr) < 0.005);
+  const pct = (x) => x.toFixed(2).replace(".", ",") + "%";
+  const loanCost = (L, apr, n) => { const p = pmt(L, apr, n); return { p, interest: Math.max(0, p * n - L) }; };
+  const DEBTS = [5000, 7500, 10000, 12500, 15000];
+
+  function renderCredit(car, m) {
+    const L = m.loan, cur = lenderNow(), dealer = loanCost(L, 11.19, S.term).interest;
+    const key = [Math.round(L), S.term, S.apr].join("|");
+    if ($("credito")._key === key) return;
+    $("credito")._key = key;
+
+    $("lenders").innerHTML = LENDERS.map(l => {
+      const c = loanCost(L, l.apr, S.term), diff = dealer - c.interest;
+      const vs = l.k === "dealer" ? "Punto de comparación" : diff > 0 ? `Ahorras <b>${fmt(diff)}</b> vs. concesionario` : `Pagas <b>${fmt(-diff)} más</b> que en concesionario`;
+      return `<button type="button" class="lender ${l.k}" role="radio" aria-checked="${cur === l}" data-apr="${l.apr}">
+        <span class="lk">${KIND[l.k]}</span><b class="ln">${esc(l.n)}</b><span class="la num">${pct(l.apr)}</span><span class="lt">${esc(l.t)}</span>
+        <span class="lc">Cuota <b>${fmt(c.p)}</b> · intereses <b>${fmt(c.interest)}</b></span><span class="lv ${diff > 0 ? "good" : l.k === "dealer" ? "" : "bad"}">${vs}</span></button>`;
+    }).join("") + (cur ? "" : `<p class="note">Ahora usas una tasa propia de <b>${pct(S.apr)}</b> (la moviste en el simulador). Toca un banco para usar su tasa.</p>`);
+
+    const per100 = L > 0 ? m.interest / L * 100 : 0;
+    $("loanKpis").innerHTML = `
+      <div class="kpi"><span class="l">Lo que pides prestado</span><span class="v num">${fmt(L)}</span><span class="s">Precio + impuestos y trámites − inicial de ${fmt(m.down)}</span></div>
+      <div class="kpi"><span class="l">Cuota al mes</span><span class="v num">${fmt(m.p)}</span><span class="s">${S.term} meses a ${pct(S.apr)}${cur ? " · " + esc(cur.n) : ""}</span></div>
+      <div class="kpi hero-k"><span class="l">Intereses en total</span><span class="v num">${fmt(m.interest)}</span><span class="s">Dinero de más que no compra nada</span></div>
+      <div class="kpi"><span class="l">Por cada $100 que pidas</span><span class="v num">$${Math.round(100 + per100)}</span><span class="s">devuelves al banco (${fmt(per100)} son intereses)</span></div>`;
+
+    const rows = TERMS.map(t => ({ t, ...loanCost(L, S.apr, t) }));
+    const max = L + Math.max(...rows.map(r => r.interest));
+    $("loanBars").innerHTML = rows.map(r => `<button type="button" class="lbar" data-term="${r.t}" aria-pressed="${r.t === S.term}">
+      <span class="lbl"><b>${r.t} meses</b><small>${(r.t / 12).toString().replace(".", ",")} años</small></span>
+      <span class="track"><i class="pr" style="width:${(L / max * 100).toFixed(1)}%"></i><i class="in" style="width:${(r.interest / max * 100).toFixed(1)}%"></i></span>
+      <span class="lval">Cuota <b>${fmt(r.p)}</b><small>+${fmt(r.interest)} de intereses</small></span></button>`).join("")
+      + `<div class="legend-inline"><span><i class="sw" style="background:var(--good)"></i>Préstamo ${fmt(L)}</span><span><i class="sw" style="background:var(--bad)"></i>Intereses</span></div>`
+      + (rows.length > 1 ? `<p class="note">Pasar de 36 a 72 meses baja la cuota ${fmt(rows[0].p - rows[3].p)}, pero suma <b>${fmt(rows[3].interest - rows[0].interest)}</b> en intereses.</p>` : "");
+
+    // Tabla por monto de deuda: incluye la deuda actual resaltada.
+    const debts = [...new Set([...DEBTS, Math.round(L / 10) * 10])].filter(d => d > 0).sort((a, b) => a - b);
+    const cells = debts.map(d => TERMS.map(t => loanCost(d, S.apr, t)));
+    const hi = Math.max(...cells.flat().map(c => c.interest)) || 1;
+    const mine = Math.round(L / 10) * 10;
+    $("debtNote").innerHTML = `Con la tasa de <b>${pct(S.apr)}</b>${cur ? ` (${esc(cur.n)})` : ""}. Número grande: intereses que pagas en total. Debajo: la cuota al mes. Tu deuda hoy es <b>${fmt(L)}</b>.`;
+    $("debtTable").innerHTML = `<thead><tr><th>Si debes</th>${TERMS.map(t => `<th>${t} meses</th>`).join("")}</tr></thead><tbody>`
+      + debts.map((d, i) => `<tr${d === mine ? ' class="mine"' : ""}><td><b>${fmt(d)}</b>${d === mine ? '<span class="small">tu caso</span>' : ""}</td>${cells[i].map((c, j) => {
+        const q = Math.min(4, Math.floor(c.interest / hi * 5));
+        const me = d === mine && TERMS[j] === S.term ? " me" : "";
+        return `<td class="q${q}${me}" title="${fmt(d)} a ${TERMS[j]} meses: cuota ${fmt(c.p)}, intereses ${fmt(c.interest)}"><b>${fmt(c.interest)}</b><span class="small">${fmt(c.p)}/mes</span></td>`;
+      }).join("")}</tr>`).join("") + "</tbody>";
+  }
+  drawers.lender = () => {
+    const car = carById(S.car), L = car._sim ? car._sim.loan : 0, cur = lenderNow();
+    const vals = LENDERS.map(l => loanCost(L, l.apr, S.term).interest);
+    const o = baseOpts();
+    o.indexAxis = "y";
+    o.plugins.legend = { display: false };
+    o.plugins.tooltip = { callbacks: { label: (c) => ` Intereses: ${fmt(c.raw)} · cuota ${fmt(loanCost(L, LENDERS[c.dataIndex].apr, S.term).p)}` } };
+    o.interaction = { mode: "nearest", axis: "y", intersect: false };
+    const muted = css("--muted"), line = css("--line");
+    o.scales = { x: { grid: { color: line }, border: { display: false }, ticks: { color: muted, callback: (v) => fmt(v) }, beginAtZero: true },
+      y: { grid: { display: false }, border: { color: line }, ticks: { color: css("--ink2"), font: { weight: 600 } } } };
+    upsert("lender", "cLender", { type: "bar", data: { labels: LENDERS.map(l => `${l.n} ${pct(l.apr)}`), datasets: [{
+      data: vals, backgroundColor: LENDERS.map(l => l === cur ? css("--s1") : css("--bar-mute")),
+      borderRadius: 4, borderSkipped: "start", barPercentage: .7, categoryPercentage: .9 }] }, options: o });
   };
 
   const DOWNS = [0, 1000, 2000, 3000, 5000, 7000, 9000];
@@ -1324,6 +1401,8 @@
     $("car").addEventListener("change", (e) => pickCar(e.target.value));
     $("term").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.term = +b.dataset.v; schedule(); } });
     $("strip").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickCar(b.dataset.pick); });
+    $("lenders").addEventListener("click", (e) => { const b = e.target.closest("[data-apr]"); if (b) { S.apr = +b.dataset.apr; syncInputs(); schedule(); } });
+    $("loanBars").addEventListener("click", (e) => { const b = e.target.closest("[data-term]"); if (b) { S.term = +b.dataset.term; schedule(); } });
     $("heroCard").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) { pickCar(b.dataset.pick); $("tu-carro").scrollIntoView({ behavior: "smooth" }); } });
     bindBases();
     document.addEventListener("click", (e) => { const q = e.target.closest('a[href^="#g-"]'); if (q) $("glosario").open = true; });

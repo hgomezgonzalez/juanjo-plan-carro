@@ -15,6 +15,9 @@
   --warn: #fab219; --warn-ink: #8a5a00; --warn-bg: #fdf3dc;
   --bad: #d03b3b; --bad-ink: #a12a2a; --bad-bg: #f9e4e2;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4;
+  --bar-mute: #c9cfcb;
+  --seq0: #fdf0e8; --seq1: #fad3bd; --seq2: #f3a77f; --seq3: #df7240; --seq4: #a9461a;
+  --seqT0: #5a2a12; --seqT1: #5a2a12; --seqT2: #3d1a08; --seqT3: #ffffff; --seqT4: #ffffff;
   --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   color-scheme: light;
@@ -25,6 +28,9 @@
     --accent: #43b583; --accent-soft: #15291f; --sign: #0b5c3c; --sign-ink: #ffffff;
     --good-ink: #3fcf3f; --good-bg: #13261a; --warn-ink: #fab219; --warn-bg: #2a2412; --bad-ink: #f07f7f; --bad-bg: #2e1716;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+    --bar-mute: #3a423e;
+    --seq0: #24170f; --seq1: #4a2614; --seq2: #7a3819; --seq3: #b8541f; --seq4: #ef8a52;
+    --seqT0: #f3d9c9; --seqT1: #f7dccb; --seqT2: #ffe9dc; --seqT3: #fff4ec; --seqT4: #1b0d05;
     color-scheme: dark;
   }
 }
@@ -33,6 +39,9 @@
   --accent: #43b583; --accent-soft: #15291f; --sign: #0b5c3c; --sign-ink: #ffffff;
   --good-ink: #3fcf3f; --good-bg: #13261a; --warn-ink: #fab219; --warn-bg: #2a2412; --bad-ink: #f07f7f; --bad-bg: #2e1716;
   --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181;
+  --bar-mute: #3a423e;
+  --seq0: #24170f; --seq1: #4a2614; --seq2: #7a3819; --seq3: #b8541f; --seq4: #ef8a52;
+  --seqT0: #f3d9c9; --seqT1: #f7dccb; --seqT2: #ffe9dc; --seqT3: #fff4ec; --seqT4: #1b0d05;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -417,3 +426,43 @@ section { scroll-margin-top: calc(var(--gb-h, 80px) + 16px); }
 .share-row { display: grid; grid-template-columns: minmax(0, 260px) auto; gap: 10px; align-items: end; justify-content: start; }
 @media (max-width: 560px) { .share-row { grid-template-columns: minmax(0, 1fr); } }
 .received { background: var(--accent-soft); border: 2px solid var(--accent); border-radius: 12px; padding: 14px 16px; display: grid; gap: 8px; font-size: 15px; }
+
+/* Crédito */
+.lenders { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.lender { text-align: left; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 3px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.lender:hover { border-color: var(--ink2); }
+.lender[aria-checked="true"] { border-color: var(--s1); box-shadow: 0 0 0 2px var(--s1); }
+.lender .lk { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.lender.cu .lk { color: var(--good-ink); }
+.lender.risk .lk { color: var(--bad-ink); }
+.lender .ln { font-size: 15px; }
+.lender .la { font-family: var(--f-display); font-size: 30px; line-height: 1; }
+.lender .lt { font-size: 12.5px; color: var(--muted); }
+.lender .lc { font-size: 13px; color: var(--ink2); margin-top: 4px; }
+.lender .lv { font-size: 12.5px; padding: 3px 7px; border-radius: 6px; background: var(--line); justify-self: start; }
+.lender .lv.good { background: var(--good-bg); color: var(--good-ink); }
+.lender .lv.bad { background: var(--bad-bg); color: var(--bad-ink); }
+.loanbars { display: grid; gap: 8px; }
+.lbar { font: inherit; color: var(--ink); background: none; border: 1px solid transparent; border-radius: 8px; padding: 8px; display: grid; grid-template-columns: 74px 1fr auto; gap: 10px; align-items: center; cursor: pointer; text-align: left; }
+.lbar:hover { background: var(--accent-soft); }
+.lbar[aria-pressed="true"] { border-color: var(--ink); background: var(--accent-soft); }
+.lbar .lbl, .lbar .lval { display: grid; line-height: 1.2; }
+.lbar small { font-size: 11.5px; color: var(--muted); }
+.lbar .lval { text-align: right; font-size: 13px; }
+.lbar .lval small { color: var(--bad-ink); font-weight: 600; }
+.lbar .track { display: flex; gap: 2px; height: 22px; }
+.lbar .track i { display: block; height: 100%; }
+.lbar .pr { background: var(--good); border-radius: 4px 0 0 4px; }
+.lbar .in { background: var(--bad); border-radius: 0 4px 4px 0; }
+#lenderBox { height: 300px; }
+.debt td.q0 { background: var(--seq0); color: var(--seqT0); }
+.debt td.q1 { background: var(--seq1); color: var(--seqT1); }
+.debt td.q2 { background: var(--seq2); color: var(--seqT2); }
+.debt td.q3 { background: var(--seq3); color: var(--seqT3); }
+.debt td.q4 { background: var(--seq4); color: var(--seqT4); }
+.debt td .small { color: inherit; opacity: .85; display: block; }
+.debt td.me { outline: 3px solid var(--ink); outline-offset: -3px; }
+.debt tr.mine td:first-child { background: var(--accent-soft); }
+.debt td:first-child .small { display: block; color: var(--accent); font-weight: 700; opacity: 1; }
+.tips { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+@media (max-width: 560px) { .lbar { grid-template-columns: 58px 1fr; } .lbar .lval { grid-column: 1 / -1; text-align: left; display: flex; gap: 8px; } }
