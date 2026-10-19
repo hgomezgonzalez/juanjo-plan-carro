@@ -84,7 +84,7 @@
     const e = { ...c };
     e.h2 = !!mi.h2;
     e.mpgE = e.h2 ? null : (c.mpg || mi.mpg);
-    e.repair = mi.repair; e.dep = mi.dep; e.insF = mi.ins; e.rel = mi.rel;
+    e.repair = mi.repair; e.dep = mi.dep; e.insF = mi.ins; e.rel = mi.rel; e.cvt = !!mi.cvt;
     e.heavy = c.heavy ?? !!mi.heavy;
     e.theft = mi.theftBefore ? c.year < mi.theftBefore : false;
     e.unknownModel = mi.unknown;
@@ -186,8 +186,8 @@
       if (m.total <= budget()) r.push(["pos", `Cabe en tu dinero: ${fmt(m.total)} al mes`, 85]);
       else r.push(["neg", `Cuesta ${fmt(m.total)} al mes; tienes ${fmt(budget())}`, 70]);
     }
-    if (c.rel >= 90) r.push(["pos", "Muy confiable, casi no se daña", 60]);
-    else if (c.rel <= 72) r.push(["mid", "Confiabilidad regular", 55]);
+    if (c.h2) {} else if (c.rel >= 90) r.push(["pos", "Muy confiable, casi no se daña", 60]);
+    else if (c.rel <= 72) r.push(["mid", `Confiabilidad regular (${c.rel} de 100)`, 55]);
     if (c.mpgE >= 45) r.push(["pos", `Gasta muy poca gasolina (${c.mpgE} MPG)`, 58]);
     else if (c.mpgE >= 33) r.push(["pos", `Buen consumo: ${c.mpgE} MPG`, 40]);
     else if (c.mpgE && c.mpgE < 29) r.push(["neg", `Gasta bastante gasolina (${c.mpgE} MPG)`, 45]);
@@ -203,6 +203,53 @@
     if (c.dist != null && c.dist <= 10) r.push(["pos", "Muy cerca de casa", 30]);
     else if (c.dist > 40) r.push(["mid", `Lejos: ~${c.dist} millas`, 33]);
     return r.sort((a, b) => b[2] - a[2]);
+  }
+
+  // Por qué un carro está descartado o con cuidado: lo crítico primero, en palabras simples.
+  // Junta las razones escritas a mano (cars.json "why") con las que se calculan solas, sin repetir.
+  function whyItems(c, m) {
+    const out = (c.why || []).map(([lvl, k, t, d]) => ({ lvl, k, t, d }));
+    const has = (k) => out.some(x => x.k === k);
+    const add = (lvl, k, t, d) => { if (!has(k)) out.push({ lvl, k, t, d }); };
+    if (c.h2) add("crit", "h2", "No hay dónde echarle combustible", "Funciona con hidrógeno. En NJ no hay estaciones públicas.");
+    if (c.title === "rebuilt") add("crit", "titulo", "Título rebuilt: tuvo daño grave", "Lo declararon pérdida total y lo repararon. Difícil de asegurar y casi nadie lo compra después.");
+    if (c.accidents === "yes") add("crit", "acc", "Accidente reportado", "Puede tener daños escondidos, vale menos al venderlo y el seguro puede salir más caro.");
+    if (!c.h2) {
+      const gap = m.total - budget();
+      if (gap >= 10) add(gap > 100 ? "crit" : "warn", "mes", `Con tu plan de hoy te faltan ${fmt(gap)} al mes`, `Cuesta ${fmt(m.total)} al mes con todo incluido y te entran ${fmt(budget())}.`);
+    }
+    if (c.price > BUDGET_MAX) add(c.price - BUDGET_MAX > 2500 ? "crit" : "warn", "budget", `${fmt(c.price - BUDGET_MAX)} sobre tu presupuesto`, "Más precio es más deuda, más intereses y más impuesto de venta.");
+    if (c.rel <= 72 && !c.h2) add(c.warFrac === 0 ? "crit" : "warn", "rel", `Confiabilidad regular: ${c.rel} de 100`,
+      (c.cvt ? "La caja automática CVT de Nissan falla más que la de Toyota o Honda y cambiarla cuesta miles de dólares. " : "")
+      + `Para comparar: un Corolla tiene 95. Menos puntos = más visitas al taller y gastos que no esperas.`
+      + (c.warFrac > 0 ? " La garantía que le queda lo protege por ahora." : ""));
+    if (c.warFrac === 0 && !c.h2 && !(c.cvt && has("rel"))) add("warn", "war", "Ya no tiene garantía de fábrica", "Si se daña el motor o la caja, el arreglo sale de tu bolsillo.");
+    if (c.theft) add("warn", "robo", "Fácil de robar si no tiene la actualización", "Algunos con llave no tienen inmovilizador. Pide el antirrobo por escrito y cotiza el seguro antes.");
+    if (c.accidents === "unk") add("warn", "hist", "Historial sin verificar", "No sabemos si ha chocado. Pide el Carfax completo antes de ir.");
+    if (c.insF > 1.04 && !has("seguro")) add("warn", "seguro", "Seguro más caro", "Para un conductor de 17 años este tipo de carro cuesta más de asegurar.");
+    if (c.dist > 40) add("warn", "lejos", `Queda lejos: ~${c.dist} millas`, "Un día entero para ir a verlo y más difícil volver si algo falla.");
+    if (c.unknownModel) add("warn", "datos", "Sin datos propios del modelo", "Se usan promedios. Pide verificación completa.");
+    if (c.recalls) add("warn", "recall", `${c.recalls} recall(s) en NHTSA`, "Confirma con el VIN en nhtsa.gov/recalls que ya los arreglaron.");
+    return out.sort((a, b) => (a.lvl === "crit" ? 0 : 1) - (b.lvl === "crit" ? 0 : 1));
+  }
+  // El mejor recomendado para comparar (distinto del carro dado).
+  const bestOther = (c) => ALL.filter(x => x.verdict === "good" && x.id !== c.id && !x.h2).sort((a, b) => b.score - a.score)[0];
+  function whyHtml(c, m) {
+    const items = whyItems(c, m);
+    const pos = reasons(c, m).filter(r => r[0] === "pos").slice(0, 2);
+    const best = bestOther(c);
+    const nCrit = items.filter(x => x.lvl === "crit").length;
+    const title = c.verdict === "bad" ? "¿Por qué está descartado?" : "¿Por qué hay que tener cuidado?";
+    let h = `<div class="why ${c.verdict}"><h4>${title}${nCrit ? ` <span class="why-n">${nCrit} crítico${nCrit > 1 ? "s" : ""}</span>` : ""}</h4><ol class="why-list">`;
+    h += items.map(x => `<li class="${x.lvl}"><span class="tag">${x.lvl === "crit" ? "Crítico" : "Ojo"}</span><div><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div></li>`).join("");
+    h += "</ol>";
+    if (pos.length) h += `<p class="why-pos"><b>Lo bueno que sí tiene:</b> ${pos.map(r => esc(r[1])).join(" · ")}</p>`;
+    if (best && !c.h2) {
+      const dm = m.total - best._m.total, ds = best.score - c.score;
+      h += `<p class="why-cmp">Frente al <b>${esc(best.name)}</b> (el mejor recomendado): ${dm >= 1 ? `cuesta <b>${fmt(dm)} más al mes</b>` : dm <= -1 ? `cuesta ${fmt(-dm)} menos al mes` : "cuesta casi lo mismo al mes"}${ds > 0 ? ` y tiene <b>${ds} puntos menos</b>` : ""}. <button type="button" class="linkbtn" data-pick="${esc(best.id)}">Ver ese</button></p>`;
+    }
+    if (c.decide) h += `<p class="why-dec"><b>Decisión:</b> ${esc(c.decide)}</p>`;
+    return h + "</div>";
   }
 
   // Recalcula puntajes y veredictos de todos los carros con la configuración actual.
@@ -361,16 +408,16 @@
     const [vc, vl] = VERD[car.verdict];
     const src = car.src === "juan" ? "Lo vio Juan" : car.src === "added" ? "Añadido · análisis automático" : "Nueva opción";
     const url = safeUrl(car.url);
-    const key = car.id + "|" + Math.round(m.total) + "|" + car.score + "|" + S.price;
+    const key = car.id + "|" + Math.round(m.total) + "|" + car.score + "|" + S.price + "|" + Math.round(budget());
     const el = $("heroCard");
     if (el._key === key) return;
     el._key = key;
     el.innerHTML = `${photo(car, true)}
       <div class="hero-top"><div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span class="pill ${vc}">${vl}</span><span class="pill src">${src}</span></div><h3>${esc(car.name)}</h3><p class="hero-meta">${esc(car.dealer || "")}${car.city ? " · " + esc(car.city) : ""}${car.dist != null ? ` · ~${car.dist} mi de casa` : ""}</p></div>${ring(car.score, car.verdict)}</div>
       <ul class="reasons">${rs.map(r => `<li class="${r[0]}"><span class="ic" aria-hidden="true">${r[0] === "pos" ? "✓" : r[0] === "neg" ? "✕" : "!"}</span><span>${esc(r[1])}</span></li>`).join("")}</ul>
-      <div class="specs"><div class="spec"><b>${fmt(S.price)}</b><span>precio</span></div><div class="spec"><b>${(car.miles || 0).toLocaleString("es-CO")}</b><span>millas</span></div><div class="spec"><b>${car.mpgE || "H₂"}</b><span>MPG</span></div><div class="spec"><b>${fmt(m.total)}</b><span>al mes, todo incluido</span></div></div>
+      <div class="specs"><div class="spec"><b>${fmt(S.price)}</b><span>precio</span></div><div class="spec"><b>${(car.miles || 0).toLocaleString("es-CO")}</b><span>millas</span></div><div class="spec"><b>${car.mpgE || "H₂"}</b><span>MPG</span></div><div class="spec"><b>${fmt(m.total)}</b><span>${car.h2 ? "al mes, sin combustible" : "al mes, todo incluido"}</span></div></div>
       <p class="note">${esc(car.warText)}. ${esc(car.hist || "")}</p>
-      ${car.alerts.length ? `<div class="alerts">${car.alerts.map(a => `<div class="alert ${a[0] === "bad" ? "bad" : ""}">${esc(a[1])}</div>`).join("")}</div>` : ""}
+      ${car.verdict !== "good" ? whyHtml(car, m) : car.alerts.length ? `<div class="alerts">${car.alerts.map(a => `<div class="alert ${a[0] === "bad" ? "bad" : ""}">${esc(a[1])}</div>`).join("")}</div>` : ""}
       ${url ? `<div><a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Ver anuncio ↗</a></div>` : ""}`;
   }
 
@@ -671,11 +718,13 @@
     h += row("=", "Te entra al mes", fmt(budget()), "", "sum");
     h += row("−", "Cuota al banco", fmt(m.p), `${S.term} meses`);
     h += row("−", "Seguro", fmt(m.ins), "Obligatorio");
-    h += row("−", "Gasolina", fmt(m.gas), `${S.miles} millas al mes`);
+    h += car.h2 ? row("✕", "Hidrógeno", "—", "En NJ no se vende: no hay cómo calcularlo (ni cómo usar el carro)", "res bad")
+      : row("−", "Gasolina", fmt(m.gas), `${S.miles} millas al mes`);
     h += row("−", "Mantenimiento y llantas", fmt(m.maint), "Aceite, frenos, llantas, reparaciones");
     h += row("−", "Otros (peajes, parqueo, registro)", fmt(m.other));
-    h += row("=", "El carro te cuesta al mes", fmt(m.total), "", "sum");
-    h += row(gap >= 0 ? "✓" : "✕", gap >= 0 ? "Te sobra cada mes" : "Te falta cada mes", fmt(Math.abs(gap)),
+    h += row("=", "El carro te cuesta al mes", fmt(m.total), car.h2 ? "Sin contar combustible, porque aquí no hay" : "", "sum");
+    if (car.h2) h += row("✕", "No sirve hacer la cuenta", "—", "Aunque parezca barato, en NJ no lo podrías manejar", "res bad");
+    else h += row(gap >= 0 ? "✓" : "✕", gap >= 0 ? "Te sobra cada mes" : "Te falta cada mes", fmt(Math.abs(gap)),
       gap >= 0 ? "Esto puedes guardarlo o usarlo para ti" : "Este dinero tendría que salir de algún lado cada mes",
       "res " + (gap >= 0 ? (gap < S.buffer ? "warn" : "good") : "bad"));
     $("flowMonth").innerHTML = h;
@@ -694,7 +743,7 @@
   function carOptions(sel) {
     const groups = [["good", "✓ Recomendados"], ["warn", "! Con cuidado"], ["bad", "✕ Descartados"]];
     return groups.map(([v, lab]) => {
-      const items = ALL.filter(c => c.verdict === v && !c.h2).sort((a, b) => b.score - a.score);
+      const items = ALL.filter(c => c.verdict === v).sort((a, b) => b.score - a.score);
       return items.length ? `<optgroup label="${lab}">${items.map(c => `<option value="${esc(c.id)}"${c.id === sel ? " selected" : ""}>${esc(c.name)} · ${fmt(c.price)}</option>`).join("")}</optgroup>` : "";
     }).join("");
   }
@@ -765,9 +814,10 @@
           <div class="car-line">${fmt(c.price)}${c.docInc ? " con doc fee" : " + doc fee"} · ${(c.miles || 0).toLocaleString("es-CO")} mi · ${c.mpgE ? c.mpgE + " MPG" : "H₂"}</div>
           <div class="car-line">${esc(c.dealer || "")}${c.city ? " · " + esc(c.city) : ""}${c.dist != null ? ` · ~${c.dist} mi` : ""}</div>
           <div class="car-cost"><b>${c.h2 ? "—" : fmt(c._m.total)}</b><span>${c.h2 ? "no se puede usar en NJ" : "al mes, todo incluido"}</span></div>
+          ${c.verdict !== "good" ? whyItems(c, c._m).slice(0, 2).map(w => `<div class="why-line ${w.lvl}"><b>${w.lvl === "crit" ? "Crítico" : "Ojo"}:</b> ${esc(w.t)}</div>`).join("") : ""}
           <div class="chips">${rs.map(r => `<span class="chip ${r[0] === "pos" ? "pos" : r[0] === "neg" ? "neg" : ""}">${esc(r[1])}</span>`).join("")}</div>
           <div class="car-actions">
-            <button type="button" class="btn solid" data-sim="${esc(c.id)}"${c.h2 ? " disabled" : ""}>Simular</button>
+            <button type="button" class="btn solid" data-sim="${esc(c.id)}">${c.verdict === "bad" ? "Ver por qué" : "Simular"}</button>
             ${url ? `<a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Anuncio ↗</a>` : ""}
             ${c.src === "added" ? `<button type="button" class="btn ghost" data-verify="${esc(c.id)}">Pedir verificación</button><button type="button" class="btn ghost" data-remove="${esc(c.id)}">Quitar</button>` : ""}
           </div>
@@ -1230,7 +1280,7 @@
   function syncInputs() { RANGES.forEach(k => { $(k).value = S[k]; }); }
   function pickCar(id) {
     const c = carById(id); if (!c) return;
-    if (c.h2) { toast("Este carro es de hidrógeno: en NJ no hay dónde cargarlo. Te muestro por qué está descartado."); showCard(id); return; }
+    if (c.h2) toast("Es de hidrógeno: lo puedes ver, pero en NJ no hay dónde cargarlo.");
     S.car = id; S.price = c.price;
     const pr = $("price"); pr.max = Math.max(25000, Math.ceil(c.price / 1000) * 1000 + 3000);
     syncInputs(); schedule();
@@ -1240,6 +1290,7 @@
     $("car").addEventListener("change", (e) => pickCar(e.target.value));
     $("term").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.term = +b.dataset.v; schedule(); } });
     $("strip").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickCar(b.dataset.pick); });
+    $("heroCard").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) { pickCar(b.dataset.pick); $("tu-carro").scrollIntoView({ behavior: "smooth" }); } });
     bindBases();
     document.addEventListener("click", (e) => { const q = e.target.closest('a[href^="#g-"]'); if (q) $("glosario").open = true; });
     if (/^#g-/.test(location.hash)) $("glosario").open = true;
