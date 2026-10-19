@@ -116,6 +116,18 @@ section { display: grid; gap: 16px; scroll-margin-top: 16px; }
 .alert.bad { background: var(--bad-bg); }
 .why { border: 1px solid var(--line); border-left: 5px solid var(--bad); border-radius: 10px; padding: 12px 14px; display: grid; gap: 10px; background: var(--surface); }
 .why.warn { border-left-color: var(--warn); }
+.why.good { border-left-color: var(--good); }
+.why-n.pro { background: var(--good-ink); color: var(--surface); }
+.args { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.arg { display: grid; gap: 8px; align-content: start; }
+.arg h5 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; display: flex; gap: 6px; align-items: center; }
+.arg.pro h5 { color: var(--good-ink); } .arg.con h5 { color: var(--bad-ink); }
+.arg h5 small { font-size: 12px; padding: 1px 7px; border-radius: 99px; background: var(--line); color: var(--ink); }
+.why-list li.top, .why-list li.pos { background: var(--good-bg); }
+.why-list li.top b { color: var(--good-ink); }
+.why-list li.top .tag { background: var(--good-ink); color: var(--surface); }
+.why-list li.pos .tag { background: transparent; color: var(--good-ink); border: 1px solid var(--good-ink); }
+.why-line.top, .why-line.pos { background: var(--good-bg); color: var(--good-ink); }
 .why h4 { margin: 0; font-family: var(--f-display); font-size: 20px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .why-n { font-family: var(--f-body); font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--bad); color: #fff; }
 .why-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }

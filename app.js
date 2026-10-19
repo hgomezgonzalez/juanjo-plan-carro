@@ -84,7 +84,7 @@
     const e = { ...c };
     e.h2 = !!mi.h2;
     e.mpgE = e.h2 ? null : (c.mpg || mi.mpg);
-    e.repair = mi.repair; e.dep = mi.dep; e.insF = mi.ins; e.rel = mi.rel; e.cvt = !!mi.cvt;
+    e.repair = mi.repair; e.dep = mi.dep; e.insF = mi.ins; e.rel = mi.rel; e.cvt = !!mi.cvt; e.modelAlert = mi.alert || null;
     e.heavy = c.heavy ?? !!mi.heavy;
     e.theft = mi.theftBefore ? c.year < mi.theftBefore : false;
     e.unknownModel = mi.unknown;
@@ -227,31 +227,65 @@
     if (c.theft) add("warn", "robo", "Fácil de robar si no tiene la actualización", "Algunos con llave no tienen inmovilizador. Pide el antirrobo por escrito y cotiza el seguro antes.");
     if (c.accidents === "unk") add("warn", "hist", "Historial sin verificar", "No sabemos si ha chocado. Pide el Carfax completo antes de ir.");
     if (c.insF > 1.04 && !has("seguro")) add("warn", "seguro", "Seguro más caro", "Para un conductor de 17 años este tipo de carro cuesta más de asegurar.");
+    if (c.modelAlert && !c.cvt) add("warn", "modelo", "Falla conocida del modelo", c.modelAlert);
     if (c.dist > 40) add("warn", "lejos", `Queda lejos: ~${c.dist} millas`, "Un día entero para ir a verlo y más difícil volver si algo falla.");
     if (c.unknownModel) add("warn", "datos", "Sin datos propios del modelo", "Se usan promedios. Pide verificación completa.");
     if (c.recalls) add("warn", "recall", `${c.recalls} recall(s) en NHTSA`, "Confirma con el VIN en nhtsa.gov/recalls que ya los arreglaron.");
     return out.sort((a, b) => (a.lvl === "crit" ? 0 : 1) - (b.lvl === "crit" ? 0 : 1));
   }
+  // Argumentos para comprarlo: lo más fuerte primero ("top" = razón fuerte).
+  function proItems(c, m) {
+    const out = (c.pros || []).map(([lvl, k, t, d]) => ({ lvl, k, t, d }));
+    const has = (k) => out.some(x => x.k === k);
+    const add = (lvl, k, t, d) => { if (!has(k)) out.push({ lvl, k, t, d }); };
+    if (c.h2) return out;
+    const ok = ALL.filter(x => !x.h2 && x.verdict !== "bad");
+    if (c.verdict !== "bad" && ok.length && Math.min(...ok.map(x => x._m.total)) >= m.total - 0.5) add("top", "barato", "El más barato al mes de la lista", `Con todo incluido sale en ${fmt(m.total)}: ninguno de los que valen la pena cuesta menos.`);
+    if (ok.length && Math.max(...ok.map(x => x.score)) <= c.score) add("top", "puntaje", "El puntaje más alto de todos", `${c.score} de 100 sumando costo, confiabilidad, seguro, historial y garantía.`);
+    const gap = budget() - m.total;
+    if (gap >= S.buffer) add("top", "mes", `Te alcanza: te sobran ${fmt(gap)} al mes`, `Cuesta ${fmt(m.total)} al mes con todo incluido y te entran ${fmt(budget())}.`);
+    else if (gap >= 0) add("pos", "mes", `Te alcanza justo: sobran ${fmt(gap)} al mes`, "Alcanza, pero queda poco margen para imprevistos.");
+    if (c.rel >= 90) add("top", "rel", `Muy confiable: ${c.rel} de 100`, "Es de los que casi no se dañan: menos visitas al taller y menos gastos sorpresa.");
+    else if (c.rel >= 80) add("pos", "rel", `Confiabilidad buena: ${c.rel} de 100`, "Pocos problemas conocidos si se le hace el mantenimiento.");
+    if (c.accidents === "no") add(c.owners === 1 ? "top" : "pos", "hist", c.owners === 1 ? "Sin accidentes y un solo dueño" : "Sin accidentes reportados", c.owners === 1 ? "Lo cuidó una sola persona: menos riesgo de problemas escondidos." : "Título limpio según el historial.");
+    if (c.warFrac > 0.3) add("top", "war", "Le queda garantía de motor", `${c.warText}: si se daña el motor o la caja, lo paga la fábrica.`);
+    else if (c.warFrac > 0) add("pos", "war", "Le queda algo de garantía", c.warText + ".");
+    if (c.miles && c.miles < 35000) add("top", "pocas", `Pocas millas: ${c.miles.toLocaleString("es-CO")}`, "Menos desgaste: le queda mucha vida por delante.");
+    if (c.mpgE >= 45) add("top", "gas", `Gasta muy poca gasolina: ${c.mpgE} MPG`, `Unos ${fmt(m.gas)} al mes en gasolina.`);
+    else if (c.mpgE >= 33) add("pos", "gas", `Buen consumo: ${c.mpgE} MPG`, `Unos ${fmt(m.gas)} al mes en gasolina.`);
+    if (c.insF <= 1 && !c.theft) add("pos", "seguro", "De los más baratos de asegurar", "Compacto y común: el seguro para un chico de 17 años sale menos caro.");
+    if (c.dep <= 0.07) add("pos", "valor", "Pierde poco valor", "Si lo vendes en unos años, recuperas más dinero que con otras marcas.");
+    if (c.dist != null && c.dist <= 10) add("pos", "cerca", `Muy cerca de casa: ~${c.dist} millas`, "Fácil ir a verlo, probarlo y volver si algo sale mal.");
+    if (c.price <= BUDGET_MAX && !has("mercado")) add("pos", "budget", "Dentro de tu presupuesto", `${fmt(c.price)}, por debajo de $15.000.`);
+    const rank = { top: 0, pos: 1 };
+    return out.sort((a, b) => rank[a.lvl] - rank[b.lvl]);
+  }
   // El mejor recomendado para comparar (distinto del carro dado).
   const bestOther = (c) => ALL.filter(x => x.verdict === "good" && x.id !== c.id && !x.h2).sort((a, b) => b.score - a.score)[0];
+  const TAG = { top: "Fuerte", pos: "A favor", crit: "Crítico", warn: "Ojo" };
+  const argLi = (x) => `<li class="${x.lvl}"><span class="tag">${TAG[x.lvl]}</span><div><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div></li>`;
   function whyHtml(c, m) {
-    const items = whyItems(c, m);
-    const pos = reasons(c, m).filter(r => r[0] === "pos").slice(0, 2);
+    const cons = whyItems(c, m), pros = proItems(c, m);
     const best = bestOther(c);
-    const nCrit = items.filter(x => x.lvl === "crit").length;
-    const title = c.verdict === "bad" ? "¿Por qué está descartado?" : "¿Por qué hay que tener cuidado?";
-    let h = `<div class="why ${c.verdict}"><h4>${title}${nCrit ? ` <span class="why-n">${nCrit} crítico${nCrit > 1 ? "s" : ""}</span>` : ""}</h4><ol class="why-list">`;
-    h += items.map(x => `<li class="${x.lvl}"><span class="tag">${x.lvl === "crit" ? "Crítico" : "Ojo"}</span><div><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div></li>`).join("");
-    h += "</ol>";
-    if (pos.length) h += `<p class="why-pos"><b>Lo bueno que sí tiene:</b> ${pos.map(r => esc(r[1])).join(" · ")}</p>`;
+    const nTop = pros.filter(x => x.lvl === "top").length, nCrit = cons.filter(x => x.lvl === "crit").length;
+    const title = c.verdict === "good" ? "¿Por qué sí comprarlo?" : c.verdict === "warn" ? "¿Comprarlo o no?" : "¿Por qué está descartado?";
+    const colPro = `<div class="arg pro"><h5>✓ Para comprarlo <small>${pros.length}</small></h5>${pros.length ? `<ol class="why-list">${pros.map(argLi).join("")}</ol>` : '<p class="small">Nada que pese de verdad.</p>'}</div>`;
+    const colCon = `<div class="arg con"><h5>✕ Para no comprarlo <small>${cons.length}</small></h5>${cons.length ? `<ol class="why-list">${cons.map(argLi).join("")}</ol>` : '<p class="small">No encontramos nada importante en contra.</p>'}</div>`;
+    let h = `<div class="why ${c.verdict}"><h4>${title}${nTop ? ` <span class="why-n pro">${nTop} fuerte${nTop > 1 ? "s" : ""}</span>` : ""}${nCrit ? ` <span class="why-n">${nCrit} crítico${nCrit > 1 ? "s" : ""}</span>` : ""}</h4>`;
+    h += `<div class="args">${c.verdict === "bad" ? colCon + colPro : colPro + colCon}</div>`;
     if (best && !c.h2) {
       const dm = m.total - best._m.total, ds = best.score - c.score;
-      h += `<p class="why-cmp">Frente al <b>${esc(best.name)}</b> (el mejor recomendado): ${dm >= 1 ? `cuesta <b>${fmt(dm)} más al mes</b>` : dm <= -1 ? `cuesta ${fmt(-dm)} menos al mes` : "cuesta casi lo mismo al mes"}${ds > 0 ? ` y tiene <b>${ds} puntos menos</b>` : ""}. <button type="button" class="linkbtn" data-pick="${esc(best.id)}">Ver ese</button></p>`;
-    }
+      h += `<p class="why-cmp">Frente al <b>${esc(best.name)}</b> (el mejor recomendado): ${dm >= 1 ? `cuesta <b>${fmt(dm)} más al mes</b>` : dm <= -1 ? `cuesta <b>${fmt(-dm)} menos al mes</b>` : "cuesta casi lo mismo al mes"}${ds > 0 ? ` y tiene <b>${ds} punto${ds > 1 ? "s" : ""} menos</b>` : ds < 0 ? ` y tiene ${-ds} punto${ds < -1 ? "s" : ""} más` : ""}. <button type="button" class="linkbtn" data-pick="${esc(best.id)}">Ver ese</button></p>`;
+    } else if (c.verdict === "good" && !c.h2) h += `<p class="why-cmp"><b>Es el mejor recomendado de la lista.</b></p>`;
     if (c.decide) h += `<p class="why-dec"><b>Decisión:</b> ${esc(c.decide)}</p>`;
     return h + "</div>";
   }
 
+  // Dos argumentos para la tarjeta: recomendados a favor, descartados en contra, con cuidado uno y uno.
+  function cardArgs(c) {
+    const p = proItems(c, c._m), k = whyItems(c, c._m);
+    return (c.verdict === "good" ? [p[0], p[1]] : c.verdict === "bad" ? [k[0], k[1]] : [p[0], k[0]]).filter(Boolean);
+  }
   // Recalcula puntajes y veredictos de todos los carros con la configuración actual.
   function rescore() {
     ALL.forEach(c => {
@@ -417,7 +451,7 @@
       <ul class="reasons">${rs.map(r => `<li class="${r[0]}"><span class="ic" aria-hidden="true">${r[0] === "pos" ? "✓" : r[0] === "neg" ? "✕" : "!"}</span><span>${esc(r[1])}</span></li>`).join("")}</ul>
       <div class="specs"><div class="spec"><b>${fmt(S.price)}</b><span>precio</span></div><div class="spec"><b>${(car.miles || 0).toLocaleString("es-CO")}</b><span>millas</span></div><div class="spec"><b>${car.mpgE || "H₂"}</b><span>MPG</span></div><div class="spec"><b>${fmt(m.total)}</b><span>${car.h2 ? "al mes, sin combustible" : "al mes, todo incluido"}</span></div></div>
       <p class="note">${esc(car.warText)}. ${esc(car.hist || "")}</p>
-      ${car.verdict !== "good" ? whyHtml(car, m) : car.alerts.length ? `<div class="alerts">${car.alerts.map(a => `<div class="alert ${a[0] === "bad" ? "bad" : ""}">${esc(a[1])}</div>`).join("")}</div>` : ""}
+      ${whyHtml(car, m)}
       ${url ? `<div><a class="btn" href="${esc(url)}" target="_blank" rel="noopener">Ver anuncio ↗</a></div>` : ""}`;
   }
 
@@ -814,7 +848,7 @@
           <div class="car-line">${fmt(c.price)}${c.docInc ? " con doc fee" : " + doc fee"} · ${(c.miles || 0).toLocaleString("es-CO")} mi · ${c.mpgE ? c.mpgE + " MPG" : "H₂"}</div>
           <div class="car-line">${esc(c.dealer || "")}${c.city ? " · " + esc(c.city) : ""}${c.dist != null ? ` · ~${c.dist} mi` : ""}</div>
           <div class="car-cost"><b>${c.h2 ? "—" : fmt(c._m.total)}</b><span>${c.h2 ? "no se puede usar en NJ" : "al mes, todo incluido"}</span></div>
-          ${c.verdict !== "good" ? whyItems(c, c._m).slice(0, 2).map(w => `<div class="why-line ${w.lvl}"><b>${w.lvl === "crit" ? "Crítico" : "Ojo"}:</b> ${esc(w.t)}</div>`).join("") : ""}
+          ${cardArgs(c).map(w => `<div class="why-line ${w.lvl}"><b>${TAG[w.lvl]}:</b> ${esc(w.t)}</div>`).join("")}
           <div class="chips">${rs.map(r => `<span class="chip ${r[0] === "pos" ? "pos" : r[0] === "neg" ? "neg" : ""}">${esc(r[1])}</span>`).join("")}</div>
           <div class="car-actions">
             <button type="button" class="btn solid" data-sim="${esc(c.id)}">${c.verdict === "bad" ? "Ver por qué" : "Simular"}</button>
