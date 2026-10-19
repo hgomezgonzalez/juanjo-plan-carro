@@ -12,6 +12,9 @@
   const WEEKS = 52 / 12;
   const LEGAL = { school: 40, summer: 50 };
   const STORE_KEY = "juanjo.added.v1";
+  const STATE_KEY = "juanjo.state.v1";
+  const BASE_KEY = "juanjo.bases.v1";
+  const MAX_BASES = 8;
 
   // Centroides aproximados de ZIP de 3 dígitos (NJ, NY, PA, CT) para estimar distancia.
   const ZIP3 = {
@@ -33,6 +36,7 @@
   let filter = "all";
   let cmpA = "A", cmpB = "J1";
   let draft = null; // carro en preparación desde el formulario
+  let BASES = []; // líneas base guardadas; la última es el objetivo
 
   // ---------- Utilidades ----------
   const $ = (id) => document.getElementById(id);
@@ -278,8 +282,10 @@
     renderGoal();
     renderMatrix(car);
     renderReco();
+    renderGoal2();
     ["donut", "equity", "when", "interest", "hours"].forEach(draw);
     scheduleHeavy();
+    saveStateSoon();
   }
   // Tarjetas con foto: se redibujan cuando el usuario deja de mover los controles.
   let heavyT = 0;
@@ -902,6 +908,136 @@
     document.getElementById("tu-carro").scrollIntoView({ behavior: "smooth" });
   }
 
+
+  // ---------- Persistencia y líneas base ----------
+  function loadState() {
+    try {
+      const j = JSON.parse(localStorage.getItem(STATE_KEY) || "null");
+      if (!j || !j.S) return;
+      Object.keys(DEFAULTS).forEach(k => { if (j.S[k] != null && typeof j.S[k] === typeof DEFAULTS[k]) S[k] = j.S[k]; });
+      if (!carById(S.car)) { S.car = DEFAULTS.car; S.price = carById(S.car).price; }
+      if (j.cmpA && carById(j.cmpA)) cmpA = j.cmpA;
+      if (j.cmpB && carById(j.cmpB)) cmpB = j.cmpB;
+      const c = carById(S.car); $("price").max = Math.max(25000, Math.ceil(c.price / 1000) * 1000 + 3000);
+    } catch { /* sin almacenamiento */ }
+  }
+  let saveT = 0;
+  function saveStateSoon() {
+    clearTimeout(saveT);
+    saveT = setTimeout(() => { try { localStorage.setItem(STATE_KEY, JSON.stringify({ S, cmpA, cmpB, at: Date.now() })); } catch { /* sin almacenamiento */ } }, 300);
+  }
+  function loadBases() { try { const j = JSON.parse(localStorage.getItem(BASE_KEY) || "[]"); return Array.isArray(j) ? j : []; } catch { return []; } }
+  function saveBases() { try { localStorage.setItem(BASE_KEY, JSON.stringify(BASES)); } catch { /* sin almacenamiento */ } }
+  const activeBase = () => BASES[BASES.length - 1] || null;
+
+  function metricsNow() {
+    const car = carById(S.car), m = monthly(car, S.price, S);
+    return { car: car.id, carName: car.name, total: m.total, gap: m.total - budget(), pmt: m.p, down: m.down, interest: m.interest,
+      hours: hoursFor(m.total), first: whenSeries(car).first, score: car.score, income: budget() };
+  }
+  function saveBaseline() {
+    const m = metricsNow();
+    const n = BASES.length ? Math.max(...BASES.map(b => b.n || 0)) + 1 : 1;
+    BASES.push({ id: Date.now().toString(36), n, label: `Línea base ${n}`, at: new Date().toISOString(), S: { ...S }, m });
+    while (BASES.length > MAX_BASES) BASES.shift();
+    saveBases(); renderBases(); renderGoal2();
+    toast(`Guardada “Línea base ${n}” como tu objetivo.`);
+  }
+  function loadBase(id) {
+    const b = BASES.find(x => x.id === id); if (!b) return;
+    Object.keys(DEFAULTS).forEach(k => { if (b.S[k] != null) S[k] = b.S[k]; });
+    if (!carById(S.car)) { S.car = DEFAULTS.car; S.price = carById(S.car).price; toast("Ese carro ya no está en la lista; se cargó el Corolla."); }
+    const c = carById(S.car); $("price").max = Math.max(25000, Math.ceil(c.price / 1000) * 1000 + 3000);
+    syncInputs(); schedule();
+  }
+  const fmtGap = (g) => g > 0 ? `Faltan ${fmt(g)}` : `Sobran ${fmt(-g)}`;
+  const fmtH = (h) => h1(Math.round(h * 10) / 10) + " h";
+  const fmtFirst = (i) => i < 0 ? "+24 meses" : i === 0 ? "Ya" : monthLabel(i);
+  // Métricas del objetivo: [clave, etiqueta, formato, menor es mejor]
+  const GOAL_METRICS = [
+    ["total", "Costo al mes", fmt, true],
+    ["gap", "Falta / sobra", fmtGap, true],
+    ["pmt", "Cuota", fmt, true],
+    ["hours", "Horas extra/sem", fmtH, true],
+    ["first", "Cuadra en", fmtFirst, true],
+    ["down", "Inicial", fmt, null]
+  ];
+  function delta(key, cur, base, lowerBetter) {
+    if (key === "first") {
+      const c = cur < 0 ? 99 : cur, b = base < 0 ? 99 : base;
+      if (c === b) return ["same", "igual"];
+      return c < b ? ["better", `${b - c} mes${b - c > 1 ? "es" : ""} antes`] : ["worse", `${c - b} mes${c - b > 1 ? "es" : ""} después`];
+    }
+    const d = cur - base;
+    const tol = key === "hours" ? 0.25 : 1;
+    if (Math.abs(d) < tol) return ["same", "igual"];
+    const txt = key === "hours" ? `${d > 0 ? "▲" : "▼"} ${h1(Math.abs(d))} h` : `${d > 0 ? "▲" : "▼"} ${fmt(Math.abs(d))}`;
+    if (lowerBetter == null) return ["neutral", txt];
+    return [(d < 0) === lowerBetter ? "better" : "worse", txt];
+  }
+  function renderGoal2() {
+    const b = activeBase(), el = $("goalbar");
+    if (!b) {
+      el.className = "goalbar empty";
+      el.innerHTML = `<div class="gb-tag"><b>Sin objetivo todavía</b><span>Mueve los valores hasta que te guste el plan y guárdalo como línea base: quedará aquí arriba como la meta a alcanzar.</span></div>
+        <div class="gb-actions"><button type="button" class="btn solid" data-gb="save">Guardar línea base</button></div>`;
+      ["kpiGapGoal", "kpiTotalGoal", "kpiPmtGoal", "kpiIntGoal", "kNeedGoal", "kLeftGoal"].forEach(id => { $(id).textContent = ""; });
+      return;
+    }
+    const cur = metricsNow();
+    const when = new Date(b.at);
+    const same = b.m.car === cur.car;
+    el.className = "goalbar";
+    el.innerHTML = `<div class="gb-tag"><b>Objetivo · ${esc(b.label)}</b><span>${esc(b.m.carName)} · ${when.toLocaleDateString("es-CO", { day: "numeric", month: "short" })} ${when.toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" })}${same ? "" : ` · ahora ves: ${esc(cur.carName)}`}</span></div>
+      <div class="gb-metrics">${GOAL_METRICS.map(([k, lab, f, lb]) => {
+        const [cls, txt] = delta(k, cur[k], b.m[k], lb);
+        const hit = lb != null && cls !== "worse";
+        return `<div class="gm${hit ? " hit" : ""}" title="Objetivo: ${esc(f(b.m[k]))} · Ahora: ${esc(f(cur[k]))}"><span class="k">${lab}</span><span class="o">${f(b.m[k])}</span><span class="d ${cls}">Ahora ${f(cur[k])}${cls === "same" ? "" : " · " + txt}</span></div>`;
+      }).join("")}</div>
+      <div class="gb-actions"><button type="button" class="btn ghost" data-gb="restore">Volver al objetivo</button><button type="button" class="btn solid" data-gb="save">Guardar nueva</button><a class="btn ghost" href="#lineas">Historial (${BASES.length})</a></div>`;
+    const chip = (id, k, f, lb) => { const [cls, txt] = delta(k, cur[k], b.m[k], lb); const e = $(id); e.className = "gc " + cls; e.textContent = `Objetivo ${f(b.m[k])}${cls === "same" ? " · lo cumples" : " · " + txt}`; };
+    chip("kpiGapGoal", "gap", fmtGap, true); chip("kpiTotalGoal", "total", fmt, true); chip("kpiPmtGoal", "pmt", fmt, true);
+    chip("kpiIntGoal", "interest", fmt, true); chip("kNeedGoal", "hours", fmtH, true);
+    const left = $("kLeftGoal"); left.className = "gc"; left.textContent = `Objetivo: ${fmtGap(b.m.gap)}`;
+  }
+  function renderBases() {
+    const sec = $("lineas");
+    sec.hidden = BASES.length === 0;
+    const act = activeBase();
+    $("bases").innerHTML = [...BASES].reverse().map(b => {
+      const isAct = b === act;
+      const when = new Date(b.at);
+      return `<article class="base${isAct ? " active" : ""}">
+        <div class="bt"><input type="text" value="${esc(b.label)}" data-rename="${b.id}" aria-label="Nombre de la línea base" maxlength="40">${isAct ? '<span class="pill goal">Objetivo actual</span>' : ""}</div>
+        <span class="small">${esc(b.m.carName)} · ${when.toLocaleString("es-CO", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
+        <dl><dt>Costo al mes</dt><dd>${fmt(b.m.total)}</dd><dt>Falta / sobra</dt><dd>${fmtGap(b.m.gap)}</dd><dt>Cuota · plazo</dt><dd>${fmt(b.m.pmt)} · ${b.S.term} m</dd>
+        <dt>Inicial</dt><dd>${fmt(b.m.down)}</dd><dt>Ingreso usado</dt><dd>${fmt(b.m.income)}${b.S.extraOn ? " (con trabajo)" : ""}</dd><dt>Horas extra/sem</dt><dd>${fmtH(b.m.hours)}</dd><dt>Cuadra en</dt><dd>${fmtFirst(b.m.first)}</dd></dl>
+        <div class="car-actions"><button type="button" class="btn solid" data-bload="${b.id}">Cargar valores</button>${isAct ? "" : `<button type="button" class="btn" data-bact="${b.id}">Hacer objetivo</button>`}<button type="button" class="btn ghost" data-bdel="${b.id}">Borrar</button></div>
+      </article>`;
+    }).join("");
+  }
+  function bindBases() {
+    $("goalbar").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-gb]"); if (!b) return;
+      if (b.dataset.gb === "save") saveBaseline();
+      if (b.dataset.gb === "restore") { loadBase(activeBase().id); toast("Volviste a los valores de tu objetivo."); }
+    });
+    $("bases").addEventListener("click", (e) => {
+      const ld = e.target.closest("[data-bload]"), ac = e.target.closest("[data-bact]"), dl = e.target.closest("[data-bdel]");
+      if (ld) { loadBase(ld.dataset.bload); toast("Valores cargados. Muévelos y compara con el objetivo de arriba."); document.getElementById("tu-carro").scrollIntoView({ behavior: "smooth" }); }
+      if (ac) { const i = BASES.findIndex(x => x.id === ac.dataset.bact); BASES.push(BASES.splice(i, 1)[0]); saveBases(); renderBases(); renderGoal2(); toast("Ahora ese es tu objetivo."); }
+      if (dl) {
+        if (dl.dataset.confirm !== "1") { dl.dataset.confirm = "1"; dl.textContent = "¿Seguro? Toca otra vez"; setTimeout(() => { dl.dataset.confirm = ""; dl.textContent = "Borrar"; }, 3000); return; }
+        BASES = BASES.filter(x => x.id !== dl.dataset.bdel); saveBases(); renderBases(); renderGoal2(); toast("Línea base borrada.");
+      }
+    });
+    $("bases").addEventListener("change", (e) => {
+      const r = e.target.closest("[data-rename]"); if (!r) return;
+      const b = BASES.find(x => x.id === r.dataset.rename); if (!b) return;
+      b.label = r.value.trim() || b.label; saveBases(); renderGoal2();
+    });
+  }
+
   // ---------- Guardar y compartir ----------
   function saveAdded() { try { localStorage.setItem(STORE_KEY, JSON.stringify(ADDED)); } catch { /* sin almacenamiento */ } }
   function loadAdded() { try { const j = JSON.parse(localStorage.getItem(STORE_KEY) || "[]"); return Array.isArray(j) ? j : []; } catch { return []; } }
@@ -953,6 +1089,7 @@
     $("car").addEventListener("change", (e) => pickCar(e.target.value));
     $("term").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.term = +b.dataset.v; schedule(); } });
     $("strip").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickCar(b.dataset.pick); });
+    bindBases();
     $("scen").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.extraOn = b.dataset.v === "1"; if (S.extraOn && S.hours === 0) S.hours = 28; syncInputs(); schedule(); } });
     $("season").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.season = b.dataset.v; schedule(); } });
     $("h500").addEventListener("click", () => { S.hours = Math.round(500 / S.wage * 2) / 2; S.extraOn = true; syncInputs(); schedule(); toast(`${h1(S.hours)} h a ${fmt(S.wage)} ≈ ${fmt(S.hours * S.wage)} brutos por semana.`); });
@@ -983,7 +1120,7 @@
     document.querySelector("#comparar").addEventListener("change", (e) => {
       const s = e.target.closest("[data-cmp]"); if (!s) return;
       if (s.dataset.cmp === "cmpA") cmpA = s.value; else cmpB = s.value;
-      renderCompareCards(); draw("radar"); draw("cmpbar");
+      renderCompareCards(); draw("radar"); draw("cmpbar"); saveStateSoon();
     });
     $("parseBtn").addEventListener("click", onParse);
     $("manualBtn").addEventListener("click", () => { draft = {}; $("parseStatus").hidden = true; fillForm({}); });
@@ -1018,12 +1155,16 @@
       return;
     }
     ADDED = loadAdded();
+    BASES = loadBases();
     const imported = importHash();
     rebuildAll();
     $("makeList").innerHTML = [...new Set(Object.keys(MODELS.models).map(k => k.split("|")[0]))].map(m => `<option value="${esc(cap(m))}">`).join("");
+    loadState();
     syncInputs();
     bind();
     renderAll();
+    renderBases();
+    if ("ResizeObserver" in window) new ResizeObserver(([e]) => document.documentElement.style.setProperty("--gb-h", Math.ceil(e.target.getBoundingClientRect().height) + "px")).observe($("goalbar"));
     renderStrip(); renderCompareCards(); renderGallery();
     watchCharts();
     announceImport(imported);

@@ -316,3 +316,47 @@ footer { font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--lin
 .split div { height: 100%; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; min-width: 0; overflow: hidden; white-space: nowrap; }
 .effort-scale span:first-child { transform: none; }
 .effort-scale span:last-child { transform: translateX(-100%); white-space: nowrap; }
+
+/* Línea base (objetivo) */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.goalbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--surface); border: 2px solid var(--s1); border-radius: 12px; padding: 10px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px 14px; align-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.08); }
+.goalbar.empty { border-style: dashed; grid-template-columns: minmax(0, 1fr) auto; box-shadow: none; }
+@media (max-width: 760px) { .goalbar, .goalbar.empty { grid-template-columns: minmax(0, 1fr); } }
+.gb-tag { display: grid; gap: 0; min-width: 0; }
+.gb-tag b { font-family: var(--f-display); font-size: 18px; color: var(--s1); text-transform: uppercase; letter-spacing: .04em; line-height: 1.1; }
+.gb-tag span { font-size: 12px; color: var(--ink2); }
+.gb-metrics { display: flex; gap: 6px; overflow-x: auto; min-width: 0; padding-bottom: 2px; }
+.gm { flex: 0 0 auto; display: grid; gap: 0; padding: 4px 10px; border-radius: 8px; background: var(--bg); min-width: 96px; }
+.gm .k { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.gm .o { font-family: var(--f-display); font-size: 19px; line-height: 1.1; }
+.gm .d { font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gm .d.better { color: var(--good-ink); } .gm .d.worse { color: var(--bad-ink); } .gm .d.same { color: var(--muted); }
+.gm.hit { background: var(--good-bg); }
+.gb-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.gc { font-size: 11.5px; font-weight: 700; margin-top: 4px; padding: 2px 6px; border-radius: 6px; background: var(--bg); color: var(--ink2); justify-self: start; font-variant-numeric: tabular-nums; }
+.gc:empty { display: none; }
+.gc.better { color: var(--good-ink); } .gc.worse { color: var(--bad-ink); }
+.bases { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.base { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; align-content: start; }
+.base.active { border: 2px solid var(--s1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--s1) 15%, transparent); }
+.base .bt { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.base input { font-weight: 700; padding: 4px 8px; }
+.base dl { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; margin: 0; font-size: 13px; }
+.base dt { color: var(--ink2); } .base dd { margin: 0; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.pill.goal { background: var(--s1); color: #fff; }
+.controls { top: calc(env(safe-area-inset-top, 0px) + var(--gb-h, 80px) + 12px); max-height: calc(100vh - var(--gb-h, 80px) - 24px); }
+section { scroll-margin-top: calc(var(--gb-h, 80px) + 16px); }
+.gm .d.neutral { color: var(--ink2); }
+.gb-metrics { flex-wrap: wrap; overflow-x: visible; }
+@media (max-width: 760px) { .gb-metrics { flex-wrap: nowrap; overflow-x: auto; } .gm { min-width: 112px; } .gb-actions { justify-content: flex-start; } }
+.goalbar { box-shadow: 0 0 0 10px var(--bg), 0 12px 24px rgba(0,0,0,.10); }
+.goalbar.empty { box-shadow: 0 0 0 10px var(--bg); }
+@media (max-width: 760px) {
+  .goalbar { padding: 8px 10px; gap: 6px; }
+  .gb-tag b { font-size: 16px; }
+  .gb-tag span { font-size: 11px; }
+  .gb-actions { flex-wrap: nowrap; overflow-x: auto; }
+  .gb-actions .btn { padding: 4px 9px; font-size: 12px; }
+  .gm { padding: 3px 8px; min-width: 104px; }
+  .gm .o { font-size: 17px; }
+}
