@@ -360,3 +360,26 @@ section { scroll-margin-top: calc(var(--gb-h, 80px) + 16px); }
   .gm { padding: 3px 8px; min-width: 104px; }
   .gm .o { font-size: 17px; }
 }
+
+/* Explicación simple */
+.q { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; text-decoration: none; margin-left: 4px; vertical-align: 1px; }
+.flow { display: grid; gap: 6px; }
+.fl-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 14px; padding: 6px 10px; border-radius: 8px; background: var(--bg); }
+.fl-row .sg { font-family: var(--f-display); font-size: 20px; text-align: center; color: var(--ink2); }
+.fl-row b { font-variant-numeric: tabular-nums; }
+.fl-row.sum { background: transparent; border-top: 2px solid var(--ink); border-radius: 0; font-weight: 700; }
+.fl-row.res { font-weight: 700; font-size: 15.5px; }
+.fl-row.res.good { background: var(--good-bg); color: var(--good-ink); }
+.fl-row.res.bad { background: var(--bad-bg); color: var(--bad-ink); }
+.fl-row.res.warn { background: var(--warn-bg); color: var(--ink); }
+.fl-row small { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.gloss { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.gloss summary { cursor: pointer; padding: 14px 18px; font-family: var(--f-display); font-size: 20px; color: var(--accent); }
+.gloss-list { margin: 0; padding: 0 18px 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.gloss-list > div { padding: 10px 12px; border-radius: 8px; background: var(--bg); scroll-margin-top: calc(var(--gb-h, 80px) + 16px); }
+.gloss-list > div:target { box-shadow: 0 0 0 2px var(--s1); }
+.gloss-list dt { font-weight: 700; margin-bottom: 2px; }
+.gloss-list dd { margin: 0; font-size: 13.5px; color: var(--ink2); }
+.thumb.dim { opacity: .62; }
+.thumb.dim small { color: var(--bad-ink); }
+.car.flash { box-shadow: 0 0 0 3px var(--s1); }

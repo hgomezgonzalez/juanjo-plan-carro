@@ -33,7 +33,7 @@
       <div><b>Dayana</b>Co-firmante del crédito</div>
     </div>
     <nav class="nav" aria-label="Secciones">
-      <a href="#tu-carro">Tu carro</a><a href="#trabajo">Trabajo</a><a href="#simulador">Simulador</a><a href="#cuando">¿Cuándo comprar?</a><a href="#inicial">Inicial y plazo</a><a href="#comparar">Comparar</a><a href="#carros">Todos los carros</a><a href="#plan">Plan</a>
+      <a href="#cuentas">Cuentas fáciles</a><a href="#tu-carro">Tu carro</a><a href="#trabajo">Trabajo</a><a href="#simulador">Simulador</a><a href="#cuando">¿Cuándo comprar?</a><a href="#inicial">Inicial y plazo</a><a href="#comparar">Comparar</a><a href="#carros">Todos los carros</a><a href="#plan">Plan</a>
     </nav>
   </div>
 </header>
@@ -55,6 +55,47 @@
     <p class="lede">La última que guardaste es el objetivo que aparece arriba. Puedes cargar cualquiera para seguir jugando desde ahí, hacerla el objetivo o borrarla. Se guardan en este dispositivo.</p>
   </div>
   <div class="bases" id="bases"></div>
+</section>
+
+
+<section id="cuentas">
+  <div class="sec-head">
+    <span class="eyebrow">Antes de empezar</span>
+    <h2>Así funcionan las cuentas, en simple</h2>
+    <p class="lede">Hay dos tipos de dinero, y no se mezclan:</p>
+  </div>
+  <div class="two">
+    <div class="panel">
+      <h3>1. El dinero de cada mes</h3>
+      <p class="note">Lo que te entra cada mes tiene que alcanzar para lo que el carro te cobra cada mes. Si no alcanza, cada mes te faltaría plata.</p>
+      <div class="flow" id="flowMonth"></div>
+    </div>
+    <div class="panel">
+      <h3>2. El dinero que ya tienes guardado</h3>
+      <p class="note">Tu ahorro se usa una sola vez, el día de la compra. Una parte va de inicial y otra se queda guardada para emergencias.</p>
+      <div class="flow" id="flowSave"></div>
+    </div>
+  </div>
+  <details class="gloss" id="glosario">
+    <summary>¿Qué significa cada palabra? Toca aquí</summary>
+    <dl class="gloss-list">
+      <div id="g-ingreso"><dt>Ingreso</dt><dd>Todo el dinero que te entra en un mes: lo que te pagan en la barbería más lo que ponga la familia.</dd></div>
+      <div id="g-neto"><dt>Bruto y neto</dt><dd><b>Bruto</b> es lo que dice tu sueldo. <b>Neto</b> es lo que de verdad te llega después de que te quitan impuestos. Ejemplo: 28 h × $18 = $504 bruto; te llegan unos $444 neto.</dd></div>
+      <div id="g-ahorro"><dt>Ahorro</dt><dd>Dinero que guardas y no gastas. Hoy tienes $3.000. Cada mes que guardas algo, crece.</dd></div>
+      <div id="g-inicial"><dt>Pago inicial</dt><dd>La parte del precio que pagas tú, con tu ahorro, el día de la compra. Mientras más grande, menos te presta el banco y menos intereses pagas.</dd></div>
+      <div id="g-emergencia"><dt>Dinero de emergencia</dt><dd>Ahorro que no se toca para el carro. Sirve si chocas y debes pagar el deducible ($500–1.000), si se daña algo o si un mes ganas menos.</dd></div>
+      <div id="g-prestamo"><dt>Préstamo o crédito</dt><dd>El dinero que el banco pone por ti para completar el precio. Lo devuelves poco a poco cada mes, con intereses.</dd></div>
+      <div id="g-cuota"><dt>Cuota</dt><dd>Lo que le pagas al banco cada mes hasta terminar el préstamo. Es solo una parte de lo que cuesta el carro al mes.</dd></div>
+      <div id="g-plazo"><dt>Plazo</dt><dd>En cuántos meses devuelves el préstamo. A más meses, la cuota baja pero pagas más intereses en total.</dd></div>
+      <div id="g-tasa"><dt>Tasa de interés</dt><dd>Lo que te cobra el banco por prestarte, en porcentaje por año. Con 7,5%, por cada $1.000 que debes pagas unos $75 al año.</dd></div>
+      <div id="g-intereses"><dt>Intereses</dt><dd>Dinero extra que le pagas al banco, encima del precio del carro. Es el costo de no pagar todo de una vez.</dd></div>
+      <div id="g-seguro"><dt>Seguro y deducible</dt><dd>El seguro es obligatorio y se paga cada mes. Si chocas, primero pagas tú el <b>deducible</b> (por ejemplo $500) y el seguro paga el resto.</dd></div>
+      <div id="g-otd"><dt>Precio total (out-the-door)</dt><dd>Lo que de verdad cuesta comprarlo: precio + cargo de papeleo del concesionario + impuesto de NJ (6,625%) + placas y registro.</dd></div>
+      <div id="g-margen"><dt>Extra para imprevistos</dt><dd>Plata de más que apartas cada mes además de lo justo, para no quedarte corto si un mes algo sale mal.</dd></div>
+      <div id="g-deprec"><dt>Depreciación</dt><dd>Lo que el carro pierde de valor con el tiempo. Un carro de $15.000 puede valer $12.000 en dos años.</dd></div>
+      <div id="g-base"><dt>Línea base u objetivo</dt><dd>Un plan que guardas para compararte. Arriba verás tu objetivo y si lo que estás probando es mejor (verde) o peor (rojo).</dd></div>
+    </dl>
+  </details>
 </section>
 
 <!-- 1. Tu carro -->
@@ -99,28 +140,28 @@
     <div class="panel">
       <div class="group-title">El trabajo</div>
       <div class="field">
-        <div class="field-row"><label for="wage">Pago por hora</label><output id="wageOut"></output></div>
+        <div class="field-row"><label for="wage">Te pagan por hora</label><output id="wageOut"></output></div>
         <input type="range" id="wage" min="15.92" max="30" step="0.25">
-        <span class="hint">Mínimo legal en NJ 2026: $15,92.</span>
+        <span class="hint">Lo que te pagan por cada hora trabajada, antes de impuestos. En NJ nadie puede pagar menos de $15,92.</span>
       </div>
       <div class="field">
-        <div class="field-row"><label for="hours">Horas por semana</label><output id="hoursOut"></output></div>
+        <div class="field-row"><label for="hours">Horas que trabajarías por semana</label><output id="hoursOut"></output></div>
         <input type="range" id="hours" min="0" max="50" step="0.5">
         <div class="car-actions"><button type="button" class="btn ghost" id="h500">Meta $500/semana</button><button type="button" class="btn ghost" id="hNeed">Solo lo necesario</button></div>
       </div>
       <div class="field">
-        <div class="field-row"><label for="tips">Propinas por semana</label><output id="tipsOut"></output></div>
+        <div class="field-row"><label for="tips">Propinas en una semana</label><output id="tipsOut"></output></div>
         <input type="range" id="tips" min="0" max="300" step="5">
       </div>
       <div class="field">
-        <div class="field-row"><label for="tax">Descuentos de nómina</label><output id="taxOut"></output></div>
+        <div class="field-row"><label for="tax">Lo que te descuentan del sueldo</label> <a class="q" href="#g-neto" aria-label="¿Qué significa?">?</a><output id="taxOut"></output></div>
         <input type="range" id="tax" min="0" max="25" step="0.5">
-        <span class="hint">Seguro social y Medicare (7,65%), más impuestos federal y de NJ: ~12% para este nivel de ingreso.</span>
+        <span class="hint">Impuestos que el empleador te quita antes de pagarte. Si ganas $100, te llegan unos $88.</span>
       </div>
       <div class="field">
-        <div class="field-row"><label for="buffer">Margen de seguridad al mes</label><output id="bufferOut"></output></div>
+        <div class="field-row"><label for="buffer">Extra para imprevistos cada mes</label> <a class="q" href="#g-margen" aria-label="¿Qué significa?">?</a><output id="bufferOut"></output></div>
         <input type="range" id="buffer" min="0" max="400" step="10">
-        <span class="hint">Para que una semana floja, un deducible o una llanta no te dejen sin pagar.</span>
+        <span class="hint">Un poquito más de lo justo, por si una semana ganas menos o se daña algo.</span>
       </div>
       <div class="field">
         <span class="flabel">Temporada</span>
@@ -131,10 +172,10 @@
     </div>
     <div class="results">
       <div class="kpis">
-        <div class="kpi hero-k" id="kNeedBox"><span class="l">Horas mínimas por semana</span><span class="v num" id="kNeed"></span><span class="s" id="kNeedSub"></span><span class="gc" id="kNeedGoal"></span></div>
-        <div class="kpi"><span class="l">Ganas por semana</span><span class="v num" id="kWeek"></span><span class="s" id="kWeekSub"></span></div>
-        <div class="kpi"><span class="l">Ganas al mes (neto)</span><span class="v num" id="kMonth"></span><span class="s" id="kMonthSub"></span></div>
-        <div class="kpi"><span class="l">Te queda al mes</span><span class="v num" id="kLeft"></span><span class="s" id="kLeftSub"></span><span class="gc" id="kLeftGoal"></span></div>
+        <div class="kpi hero-k" id="kNeedBox"><span class="l">Horas que necesitas por semana</span><span class="v num" id="kNeed"></span><span class="s" id="kNeedSub"></span><span class="gc" id="kNeedGoal"></span></div>
+        <div class="kpi"><span class="l">Te llega por semana</span><span class="v num" id="kWeek"></span><span class="s" id="kWeekSub"></span></div>
+        <div class="kpi"><span class="l">Te llega al mes</span><span class="v num" id="kMonth"></span><span class="s" id="kMonthSub"></span></div>
+        <div class="kpi"><span class="l">Te queda al mes, ya pagado el carro</span><span class="v num" id="kLeft"></span><span class="s" id="kLeftSub"></span><span class="gc" id="kLeftGoal"></span></div>
       </div>
       <div class="panel">
         <h3>¿Qué tan pesado es?</h3>
@@ -180,81 +221,81 @@
         <span class="hint" id="carHint"></span>
       </div>
       <div class="field">
-        <div class="field-row"><label for="price">Precio negociado</label><output id="priceOut"></output></div>
+        <div class="field-row"><label for="price">Precio del carro</label><output id="priceOut"></output></div>
         <input type="range" id="price" min="5000" max="25000" step="100">
         <span class="hint" id="otdHint"></span>
       </div>
 
       <div class="group-title">El crédito</div>
       <div class="field">
-        <div class="field-row"><label for="down">Pago inicial</label><output id="downOut"></output></div>
+        <div class="field-row"><label for="down">Pago inicial</label> <a class="q" href="#g-inicial" aria-label="¿Qué significa?">?</a><output id="downOut"></output></div>
         <input type="range" id="down" min="0" max="12000" step="250">
-        <span class="hint">Hoy tiene $3.000. Lo ideal es no dejar la cuenta en cero.</span>
+        <span class="hint">Lo que pagas de tu ahorro el día de la compra. El resto te lo presta el banco. Hoy tienes $3.000 ahorrados.</span>
       </div>
       <div class="field">
-        <span class="flabel">Plazo del crédito</span>
+        <span class="flabel">¿En cuántos meses pagas el préstamo? <a class="q" href="#g-plazo" aria-label="¿Qué significa?">?</a></span>
         <div class="seg" id="term" role="group" aria-label="Plazo en meses">
           <button type="button" data-v="36">36 m</button><button type="button" data-v="48">48 m</button><button type="button" data-v="60">60 m</button><button type="button" data-v="72">72 m</button>
         </div>
       </div>
       <div class="field">
-        <div class="field-row"><label for="apr">Tasa de interés (APR)</label><output id="aprOut"></output></div>
+        <div class="field-row"><label for="apr">Tasa de interés</label> <a class="q" href="#g-tasa" aria-label="¿Qué significa?">?</a><output id="aprOut"></output></div>
         <input type="range" id="apr" min="4" max="20" step="0.25">
-        <span class="hint">Cooperativa con buena co-firmante: 5,5–7,5%. Concesionario: 7–9%. Sin buen crédito: 14–19%.</span>
+        <span class="hint">Lo que cobra el banco por prestarte. Más bajo es mejor. Con Dayana de co-firmante en una cooperativa: 5,5–7,5%. En el concesionario: 7–9%.</span>
       </div>
 
       <div class="group-title">Mantenerlo</div>
       <div class="field">
-        <div class="field-row"><label for="ins">Seguro (Juan en la póliza de Dayana)</label><output id="insOut"></output></div>
+        <div class="field-row"><label for="ins">Seguro al mes</label> <a class="q" href="#g-seguro" aria-label="¿Qué significa?">?</a><output id="insOut"></output></div>
         <input type="range" id="ins" min="150" max="650" step="10">
-        <span class="hint">Hombre de 17 años en NJ: suma $290–500 al mes. Póliza propia: $425–700. Se ajusta según el carro.</span>
+        <span class="hint">Lo que sube el seguro de Dayana al añadirte. A los 17 años en NJ suele ser $290–500 al mes. Es obligatorio.</span>
       </div>
       <div class="field">
-        <div class="field-row"><label for="miles">Millas al mes</label><output id="milesOut"></output></div>
+        <div class="field-row"><label for="miles">Millas que manejas al mes</label><output id="milesOut"></output></div>
         <input type="range" id="miles" min="200" max="1600" step="50">
       </div>
       <div class="field">
-        <div class="field-row"><label for="gas">Gasolina regular ($/galón)</label><output id="gasOut"></output></div>
+        <div class="field-row"><label for="gas">Precio del galón de gasolina</label><output id="gasOut"></output></div>
         <input type="range" id="gas" min="3" max="5.5" step="0.05">
         <span class="hint">Promedio NJ (AAA, 18 oct 2026): $4,25.</span>
       </div>
       <div class="field">
-        <div class="field-row"><label for="other">Peajes, parqueo, lavado, asistencia</label><output id="otherOut"></output></div>
+        <div class="field-row"><label for="other">Otros gastos del carro al mes</label><output id="otherOut"></output></div>
         <input type="range" id="other" min="0" max="200" step="5">
       </div>
 
       <div class="group-title">El dinero</div>
       <div class="field">
-        <div class="field-row"><label for="income">Ingreso de Juan</label><output id="incomeOut"></output></div>
+        <div class="field-row"><label for="income">Lo que ganas al mes hoy</label> <a class="q" href="#g-ingreso" aria-label="¿Qué significa?">?</a><output id="incomeOut"></output></div>
         <input type="range" id="income" min="0" max="2500" step="25">
       </div>
       <div class="field">
-        <div class="field-row"><label for="family">Aporte de la familia</label><output id="familyOut"></output></div>
+        <div class="field-row"><label for="family">Lo que pone la familia al mes</label><output id="familyOut"></output></div>
         <input type="range" id="family" min="0" max="1000" step="25">
       </div>
       <div class="field">
-        <div class="field-row"><label for="save">Ahorro mensual mientras espera</label><output id="saveOut"></output></div>
+        <div class="field-row"><label for="save">Lo que guardas cada mes antes de comprar</label> <a class="q" href="#g-ahorro" aria-label="¿Qué significa?">?</a><output id="saveOut"></output></div>
         <input type="range" id="save" min="0" max="1500" step="25">
-        <span class="hint">Sin carro no hay seguro ni gasolina, así que puede ahorrar casi todo.</span>
+        <span class="hint">Mientras no tengas carro no pagas seguro ni gasolina, así que puedes guardar más. Se suma a tus $3.000.</span>
       </div>
       <div class="field">
-        <div class="field-row"><label for="goal">Meta de pago inicial</label><output id="goalOut"></output></div>
+        <div class="field-row"><label for="goal">¿Cuánto quieres dar de inicial?</label><output id="goalOut"></output></div>
         <input type="range" id="goal" min="1000" max="10000" step="250">
       </div>
       <div class="field">
-        <div class="field-row"><label for="reserve">Colchón que no se toca</label><output id="reserveOut"></output></div>
+        <div class="field-row"><label for="reserve">Dinero de emergencia</label> <a class="q" href="#g-emergencia" aria-label="¿Qué significa?">?</a><output id="reserveOut"></output></div>
         <input type="range" id="reserve" min="0" max="3000" step="100">
-        <span class="hint">Para el deducible del seguro o una reparación.</span>
+        <span class="hint">Parte de tu ahorro que NO usas en el carro: queda guardada por si chocas o se daña algo.</span>
       </div>
       <button type="button" class="btn ghost" id="resetBtn">Volver a los valores iniciales</button>
     </div>
 
     <div class="results">
       <div class="kpis">
-        <div class="kpi hero-k" id="kpiGapBox"><span class="l" id="kpiGapLabel">Le falta cada mes</span><span class="v num" id="kpiGap"></span><span class="s" id="kpiGapSub"></span><span class="gc" id="kpiGapGoal"></span></div>
-        <div class="kpi"><span class="l">Costo total al mes</span><span class="v num" id="kpiTotal"></span><span class="s" id="kpiTotalSub"></span><span class="gc" id="kpiTotalGoal"></span></div>
-        <div class="kpi"><span class="l">Cuota del crédito</span><span class="v num" id="kpiPmt"></span><span class="s" id="kpiPmtSub"></span><span class="gc" id="kpiPmtGoal"></span></div>
-        <div class="kpi"><span class="l">Intereses que pagará</span><span class="v num" id="kpiInt"></span><span class="s" id="kpiIntSub"></span><span class="gc" id="kpiIntGoal"></span></div>
+        <div class="kpi hero-k" id="kpiGapBox"><span class="l" id="kpiGapLabel">Te falta cada mes</span><span class="v num" id="kpiGap"></span><span class="s" id="kpiGapSub"></span><span class="gc" id="kpiGapGoal"></span></div>
+        <div class="kpi"><span class="l">El carro te cuesta al mes</span><span class="v num" id="kpiTotal"></span><span class="s" id="kpiTotalSub"></span><span class="gc" id="kpiTotalGoal"></span></div>
+        <div class="kpi"><span class="l">Cuota al banco <a class="q" href="#g-cuota" aria-label="¿Qué significa?">?</a></span><span class="v num" id="kpiPmt"></span><span class="s" id="kpiPmtSub"></span><span class="gc" id="kpiPmtGoal"></span></div>
+        <div class="kpi"><span class="l">Intereses en total <a class="q" href="#g-intereses" aria-label="¿Qué significa?">?</a></span><span class="v num" id="kpiInt"></span><span class="s" id="kpiIntSub"></span><span class="gc" id="kpiIntGoal"></span></div>
       </div>
       <div class="two">
         <div class="panel">
@@ -263,14 +304,14 @@
           <div class="legend" id="donutLegend"></div>
         </div>
         <div class="panel">
-          <h3>Lo que debe vs. lo que vale el carro</h3>
+          <h3>Lo que debes al banco vs. lo que vale el carro <a class="q" href="#g-deprec" aria-label="¿Qué significa?">?</a></h3>
           <div class="legend-inline"><span><i class="sw" style="background:var(--s2)"></i>Saldo del crédito</span><span><i class="sw" style="background:var(--s1)"></i>Valor del carro</span></div>
           <div class="chart-box"><canvas id="cEquity" role="img" aria-label="Saldo del crédito frente al valor del carro"></canvas></div>
           <p class="note" id="equityNote"></p>
         </div>
       </div>
       <div class="panel">
-        <h3>Compra completa (“out-the-door”) en NJ</h3>
+        <h3>Lo que de verdad pagas el día de la compra <a class="q" href="#g-otd" aria-label="¿Qué significa?">?</a></h3>
         <div class="scroll" style="border:0"><table><tbody id="otdTable"></tbody></table></div>
       </div>
     </div>

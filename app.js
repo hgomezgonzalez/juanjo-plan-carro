@@ -276,6 +276,7 @@
     renderVerdict(car, m);
     renderHero(car, m);
     renderCuts(m);
+    renderFlows(car, m);
     renderWork(car, m);
     renderOtd(car, m);
     renderDonutLegend(m);
@@ -310,13 +311,13 @@
     const gap = m.total - budget();
     const st = gap <= 0 ? "good" : gap <= 200 ? "warn" : "bad";
     $("kpiGapBox").className = "kpi hero-k " + (st === "bad" ? "" : st);
-    set("kpiGapLabel", gap <= 0 ? "Le sobra cada mes" : "Le falta cada mes");
+    set("kpiGapLabel", gap <= 0 ? "Te sobra cada mes" : "Te falta cada mes");
     set("kpiGap", fmt(Math.abs(gap)));
-    set("kpiGapSub", `Disponible: ${fmt(budget())}/mes (Juan ${fmt(income())}${S.extraOn ? " con trabajo extra" : ""} + familia ${fmt(S.family)})`);
+    set("kpiGapSub", `Te entran ${fmt(budget())} al mes${S.extraOn ? " (con trabajo extra)" : ""}${S.family ? `, ${fmt(S.family)} de la familia` : ""}`);
     set("kpiTotal", fmt(m.total));
-    set("kpiTotalSub", income() > 0 ? `${Math.round(m.total / income() * 100)}% del ingreso de Juan` : "Sin ingreso");
-    set("kpiPmt", fmt(m.p)); set("kpiPmtSub", `${S.term} meses sobre ${fmt(m.loan)} financiados`);
-    set("kpiInt", fmt(m.interest)); set("kpiIntSub", `Pagará ${fmt(m.p * S.term + m.down)} por un carro de ${fmt(m.o.total)}`);
+    set("kpiTotalSub", income() > 0 ? `De cada $100 que ganas, $${Math.min(999, Math.round(m.total / income() * 100))} se irían al carro` : "Sin ingreso");
+    set("kpiPmt", fmt(m.p)); set("kpiPmtSub", `Cada mes por ${S.term} meses, para devolver ${fmt(m.loan)} que te presta el banco`);
+    set("kpiInt", fmt(m.interest)); set("kpiIntSub", `Dinero extra para el banco: al final pagas ${fmt(m.p * S.term + m.down)} por un carro de ${fmt(m.o.total)}`);
   }
 
   function renderVerdict(car, m) {
@@ -329,22 +330,23 @@
       $("verdictText").textContent = "Funciona con hidrógeno y en NJ no hay estaciones públicas. Elige otro carro arriba.";
     } else if (st === "bad") {
       const hn = hoursFor(m.total);
-      $("verdictTitle").textContent = S.extraOn ? `Aun con ${S.hours} h de trabajo extra faltan ${fmt(gap)} cada mes` : `Hoy no es viable solo con su ingreso: faltan ${fmt(gap)} cada mes`;
+      $("verdictTitle").textContent = S.extraOn ? `Aun con ${S.hours} h de trabajo extra te faltan ${fmt(gap)} cada mes` : `Con lo que ganas hoy no alcanza: te faltan ${fmt(gap)} cada mes`;
       $("verdictText").textContent = `Tener el ${car.name} cuesta ${fmt(m.total)} al mes. El seguro solo (${fmt(m.ins)}) ya ${m.ins > income() ? "supera" : "se come buena parte de"} lo que gana Juan (${fmt(income())}). Con el trabajo después de clase a ${fmt(S.wage)} la hora necesitaría unas ${hn.toFixed(1).replace(".", ",")} horas por semana (sección 2). Otras salidas: que la familia aporte la diferencia, o esperar y ahorrar para una inicial más grande (sección 4).`;
     } else if (st === "warn") {
-      $("verdictTitle").textContent = `Casi: faltan ${fmt(gap)} al mes`;
-      $("verdictText").textContent = `El plan queda justo. Una inicial un poco más grande, un seguro con descuentos o un carro más barato lo cierran. Mantén el colchón de ${fmt(S.reserve)}.`;
+      $("verdictTitle").textContent = `Casi alcanza: te faltan ${fmt(gap)} al mes`;
+      $("verdictText").textContent = `Te entran ${fmt(budget())} al mes y el carro te costaría ${fmt(m.total)} (cuota, seguro, gasolina y mantenimiento). Para que alcance puedes dar más de inicial, buscar un seguro con descuentos, elegir un carro más barato o trabajar unas horas más. Abajo, en “Así funcionan las cuentas”, está el detalle.`;
     } else {
-      $("verdictTitle").textContent = `Viable: sobran ${fmt(-gap)} al mes`;
+      $("verdictTitle").textContent = `Sí alcanza: te sobran ${fmt(-gap)} al mes`;
       $("verdictText").textContent = S.extraOn
         ? `Trabajando ${S.hours} horas por semana a ${fmt(S.wage)} la hora, Juan gana unos ${fmt(income())} netos al mes y el carro cuesta ${fmt(m.total)}. Le bastarían unas ${hoursFor(m.total).toFixed(1).replace(".", ",")} horas por semana; lo demás es ahorro. Ojo: ese trabajo no está garantizado, no firmes el crédito hasta tener el empleo y 2 o 3 pagos recibidos.`
-        : `Con este escenario el dinero disponible cubre el costo total del carro. Mantén el colchón de ${fmt(S.reserve)} para el deducible o una reparación.`;
+        : `Te entran ${fmt(budget())} al mes y el carro te cuesta ${fmt(m.total)}. Guarda tu dinero de emergencia (${fmt(S.reserve)}) sin tocarlo, por si chocas o se daña algo.`;
     }
   }
 
   function renderStrip() {
-    const list = ALL.filter(c => c.verdict !== "bad" || c.id === S.car || c.src === "added").sort((a, b) => b.score - a.score);
-    const html = list.map(c => `<button type="button" class="thumb" data-pick="${esc(c.id)}" aria-pressed="${c.id === S.car}">${photo(c)}<span>${esc(c.name)}</span><small>${fmt(c.price)} · ${c.score} pts</small></button>`).join("");
+    const rank = (c) => (c.verdict === "bad" ? 1000 : 0) - c.score;
+    const list = [...ALL].sort((a, b) => rank(a) - rank(b));
+    const html = list.map(c => `<button type="button" class="thumb${c.verdict === "bad" ? " dim" : ""}" data-pick="${esc(c.id)}" aria-pressed="${c.id === S.car}">${photo(c)}<span>${esc(c.name)}</span><small>${c.verdict === "bad" ? "✕ Descartado · " : ""}${fmt(c.price)} · ${c.score} pts${c.src === "juan" ? " · lo vio Juan" : ""}</small></button>`).join("");
     const el = $("strip");
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
   }
@@ -513,10 +515,10 @@
       ["Precio del carro", S.price, car.docInc ? "Incluye doc fee del concesionario" : ""],
       ["Doc fee (cargo de papeleo)", o.doc, car.docInc ? "Ya incluido en el precio" : "Promedio NJ $711; negociable"],
       ["Impuesto de venta NJ 6,625%", o.tax, ""],
-      ["Título con gravamen, registro, placas, calcomanía roja", o.fees, car.heavy ? "Registro $71,50 (más de 3.500 lb)" : "Registro $46,50"],
-      ["Total out-the-door", o.total, ""],
+      ["Placas, registro, título y calcomanía roja", o.fees, car.heavy ? "Registro $71,50 (más de 3.500 lb)" : "Registro $46,50"],
+      ["Total que cuesta comprarlo", o.total, ""],
       ["Pago inicial", -m.down, ""],
-      ["Monto del crédito", m.loan, `${S.term} meses al ${S.apr.toFixed(2).replace(".", ",")}%`]
+      ["Lo que te presta el banco", m.loan, `${S.term} meses al ${S.apr.toFixed(2).replace(".", ",")}%`]
     ];
     $("otdTable").innerHTML = rows.map((r, i) => `<tr${i === 4 || i === 6 ? ' style="font-weight:700"' : ""}><td>${r[0]}${r[2] ? `<div class="small">${r[2]}</div>` : ""}</td><td class="r">${fmt(r[1])}</td></tr>`).join("");
   }
@@ -650,6 +652,44 @@
     $("intLegend").innerHTML = TERMS.map((t, i) => `<span><i class="sw" style="background:${cols[i]}"></i>${t} meses</span>`).join("");
   };
 
+
+  function showCard(id) {
+    filter = "all"; document.querySelectorAll("#filters button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.f === "all")));
+    renderGallery();
+    const el = document.getElementById("card-" + id); if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 2400);
+  }
+
+  // Explicación simple: dinero de cada mes y dinero guardado.
+  function renderFlows(car, m) {
+    const row = (sg, label, val, sub, cls) => `<div class="fl-row ${cls || ""}"><span class="sg">${sg}</span><span>${label}${sub ? `<small>${sub}</small>` : ""}</span><b>${val}</b></div>`;
+    const gap = budget() - m.total;
+    let h = row("+", "Lo que ganas en la barbería", fmt(S.income), "Hoy, al mes");
+    if (S.extraOn) h += row("+", "Trabajo extra después de clase", fmt(extraNet()), `${h1(S.hours)} h por semana, ya sin impuestos`);
+    if (S.family) h += row("+", "Lo que pone la familia", fmt(S.family));
+    h += row("=", "Te entra al mes", fmt(budget()), "", "sum");
+    h += row("−", "Cuota al banco", fmt(m.p), `${S.term} meses`);
+    h += row("−", "Seguro", fmt(m.ins), "Obligatorio");
+    h += row("−", "Gasolina", fmt(m.gas), `${S.miles} millas al mes`);
+    h += row("−", "Mantenimiento y llantas", fmt(m.maint), "Aceite, frenos, llantas, reparaciones");
+    h += row("−", "Otros (peajes, parqueo, registro)", fmt(m.other));
+    h += row("=", "El carro te cuesta al mes", fmt(m.total), "", "sum");
+    h += row(gap >= 0 ? "✓" : "✕", gap >= 0 ? "Te sobra cada mes" : "Te falta cada mes", fmt(Math.abs(gap)),
+      gap >= 0 ? "Esto puedes guardarlo o usarlo para ti" : "Este dinero tendría que salir de algún lado cada mes",
+      "res " + (gap >= 0 ? (gap < S.buffer ? "warn" : "good") : "bad"));
+    $("flowMonth").innerHTML = h;
+
+    const saved = 3000, used = m.down + S.reserve, left = saved - used;
+    let g = row("", "Tienes ahorrado hoy", fmt(saved));
+    g += row("−", "Pago inicial el día de la compra", fmt(m.down), "Lo demás te lo presta el banco");
+    g += row("−", "Dinero de emergencia (no se toca)", fmt(S.reserve), "Por si chocas o se daña algo");
+    g += row(left >= 0 ? "✓" : "✕", left >= 0 ? "Te queda libre" : "Te falta ahorrar", fmt(Math.abs(left)),
+      left >= 0 ? "No hace falta guardar más para empezar" : `Guardando ${fmt(S.save)} al mes lo tienes en ${S.save > 0 ? Math.ceil(-left / S.save) + " mes(es)" : "—"}`,
+      "res " + (left >= 0 ? "good" : "bad"));
+    $("flowSave").innerHTML = g;
+  }
+
   // ---------- Comparar ----------
   function carOptions(sel) {
     const groups = [["good", "✓ Recomendados"], ["warn", "! Con cuidado"], ["bad", "✕ Descartados"]];
@@ -717,7 +757,7 @@
       const rs = reasons(c, c._m).slice(0, 3);
       const url = safeUrl(c.url);
       const src = c.src === "juan" ? "Lo vio Juan" : c.src === "added" ? "Añadido" : "Nueva opción";
-      return `<article class="car${c.id === S.car ? " sel" : ""}">
+      return `<article class="car${c.id === S.car ? " sel" : ""}" id="card-${esc(c.id)}">
         <div style="position:relative">${photo(c)}<div class="badges"><span class="pill ${vc}">${vl}</span><span class="score ${c.verdict}" title="Puntaje Juanjo">${c.score}</span></div></div>
         <div class="car-body">
           <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="pill src">${src}</span>${c.src === "added" ? '<span class="pill src">Historial sin verificar</span>' : ""}</div>
@@ -859,6 +899,16 @@
     if (!text) { status("Pega primero el link o el mensaje del carro.", "err"); return; }
     const d = parsePaste(text);
     draft = d;
+    const dup = d.vin && ALL.find(c => c.vin && c.vin.toUpperCase() === d.vin);
+    if (dup) {
+      const why = dup.verdict === "bad" ? ` Está marcado “Descartar”: ${dup.hist}` : "";
+      status(`Este carro ya está en la lista: ${dup.name} (${dup.city || ""}), ${dup.score} puntos.${why}`, dup.verdict === "bad" ? "err" : "ok");
+      $("addForm").hidden = true;
+      filter = "all"; document.querySelectorAll("#filters button").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.f === "all")));
+      renderGallery();
+      setTimeout(() => showCard(dup.id), 1400);
+      return;
+    }
     if (d.vin) {
       status(`VIN ${d.vin} encontrado. Consultando NHTSA…`);
       try {
@@ -1079,7 +1129,8 @@
   const RANGES = ["price", "down", "apr", "ins", "miles", "gas", "other", "income", "family", "save", "goal", "reserve", "cutPrice", "wage", "hours", "tips", "tax", "buffer"];
   function syncInputs() { RANGES.forEach(k => { $(k).value = S[k]; }); }
   function pickCar(id) {
-    const c = carById(id); if (!c || c.h2) { if (c && c.h2) toast("Este carro es de hidrógeno: no se puede usar en NJ."); return; }
+    const c = carById(id); if (!c) return;
+    if (c.h2) { toast("Este carro es de hidrógeno: en NJ no hay dónde cargarlo. Te muestro por qué está descartado."); showCard(id); return; }
     S.car = id; S.price = c.price;
     const pr = $("price"); pr.max = Math.max(25000, Math.ceil(c.price / 1000) * 1000 + 3000);
     syncInputs(); schedule();
@@ -1090,6 +1141,8 @@
     $("term").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.term = +b.dataset.v; schedule(); } });
     $("strip").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickCar(b.dataset.pick); });
     bindBases();
+    document.addEventListener("click", (e) => { const q = e.target.closest('a[href^="#g-"]'); if (q) $("glosario").open = true; });
+    if (/^#g-/.test(location.hash)) $("glosario").open = true;
     $("scen").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.extraOn = b.dataset.v === "1"; if (S.extraOn && S.hours === 0) S.hours = 28; syncInputs(); schedule(); } });
     $("season").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.season = b.dataset.v; schedule(); } });
     $("h500").addEventListener("click", () => { S.hours = Math.round(500 / S.wage * 2) / 2; S.extraOn = true; syncInputs(); schedule(); toast(`${h1(S.hours)} h a ${fmt(S.wage)} ≈ ${fmt(S.hours * S.wage)} brutos por semana.`); });
