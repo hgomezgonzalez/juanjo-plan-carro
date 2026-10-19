@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plan Carro Juanjo</title>
+<meta name="description" content="Simulador de compra de carro para Juan José en Sayreville, NJ: costo mensual real, inicial ideal, cuándo comprar y comparativa de carros.">
+<meta name="theme-color" content="#0b6a45">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Public+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="preload" href="data/cars.json" as="fetch" crossorigin>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+
+<header class="sign">
+  <div class="sign-in">
+    <div class="sign-top">
+      <span class="shield">SAYREVILLE · NJ 08872</span>
+      <span class="shield" id="checkedShield">DATOS 18 OCT 2026</span>
+    </div>
+    <h1>Plan Carro Juanjo</h1>
+    <p class="sign-sub">¿Qué carro te conviene, cuánto das de inicial, cuándo comprar y cuánto dinero hace falta cada mes para mantenerlo? Mueve los controles y mira qué pasa.</p>
+    <div class="sign-facts">
+      <div><b>17 años</b>Grado 12 · licencia probatoria</div>
+      <div><b>$250/mes</b>Ingreso barbería</div>
+      <div><b>$3.000</b>Ahorrado hoy</div>
+      <div><b>$10k–15k</b>Presupuesto del carro</div>
+      <div><b>Dayana</b>Co-firmante del crédito</div>
+    </div>
+    <nav class="nav" aria-label="Secciones">
+      <a href="#tu-carro">Tu carro</a><a href="#simulador">Simulador</a><a href="#cuando">¿Cuándo comprar?</a><a href="#inicial">Inicial y plazo</a><a href="#comparar">Comparar</a><a href="#carros">Todos los carros</a><a href="#plan">Plan</a>
+    </nav>
+  </div>
+</header>
+
+<div class="verdict" id="verdict">
+  <div class="verdict-icon" id="verdictIcon" aria-hidden="true">…</div>
+  <div>
+    <h2 id="verdictTitle">Cargando los carros…</h2>
+    <p id="verdictText"></p>
+  </div>
+</div>
+
+<!-- 1. Tu carro -->
+<section id="tu-carro">
+  <div class="sec-head">
+    <span class="eyebrow">1 · Tu carro</span>
+    <h2>Elige un carro y mira si te conviene</h2>
+    <p class="lede">El puntaje Juanjo va de 0 a 100. Suma el costo al mes, la confiabilidad, el seguro, el historial, la garantía y la distancia. Arriba de 72 es buena compra.</p>
+  </div>
+  <div class="strip" id="strip" role="group" aria-label="Elegir carro"></div>
+  <div class="hero">
+    <div class="panel hero-card" id="heroCard"></div>
+    <div class="panel">
+      <h3>¿Cuántos cortes al mes cuesta este carro?</h3>
+      <p class="bigq" id="cutsQ"></p>
+      <div class="cuts" id="cuts"></div>
+      <div class="field">
+        <div class="field-row"><label for="cutPrice">Lo que te queda por corte</label><output id="cutPriceOut"></output></div>
+        <input type="range" id="cutPrice" min="10" max="60" step="1">
+      </div>
+      <div class="meter" aria-label="Dinero disponible frente al costo del carro">
+        <div class="flabel">Tu dinero al mes frente a lo que cuesta el carro</div>
+        <div class="meter-track"><div class="meter-avail" id="meterAvail"></div><div class="meter-cost" id="meterCost"></div></div>
+        <div class="meter-legend"><span id="meterL1"></span><span id="meterL2"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Simulador -->
+<section id="simulador">
+  <div class="sec-head">
+    <span class="eyebrow">2 · Simulador</span>
+    <h2>¿Cuánto cuesta de verdad tener el carro cada mes?</h2>
+    <p class="lede">El costo mensual incluye la cuota del crédito y todo lo que cuesta mantener el carro: seguro, gasolina, mantenimiento, llantas, peajes y parqueo. Los valores iniciales son datos reales de octubre de 2026.</p>
+  </div>
+  <div class="sim">
+    <div class="panel controls">
+      <div class="group-title">El carro</div>
+      <div class="field">
+        <label for="car">Carro a simular</label>
+        <select id="car"></select>
+        <span class="hint" id="carHint"></span>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="price">Precio negociado</label><output id="priceOut"></output></div>
+        <input type="range" id="price" min="5000" max="25000" step="100">
+        <span class="hint" id="otdHint"></span>
+      </div>
+
+      <div class="group-title">El crédito</div>
+      <div class="field">
+        <div class="field-row"><label for="down">Pago inicial</label><output id="downOut"></output></div>
+        <input type="range" id="down" min="0" max="12000" step="250">
+        <span class="hint">Hoy tiene $3.000. Lo ideal es no dejar la cuenta en cero.</span>
+      </div>
+      <div class="field">
+        <span class="flabel">Plazo del crédito</span>
+        <div class="seg" id="term" role="group" aria-label="Plazo en meses">
+          <button type="button" data-v="36">36 m</button><button type="button" data-v="48">48 m</button><button type="button" data-v="60">60 m</button><button type="button" data-v="72">72 m</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="apr">Tasa de interés (APR)</label><output id="aprOut"></output></div>
+        <input type="range" id="apr" min="4" max="20" step="0.25">
+        <span class="hint">Cooperativa con buena co-firmante: 5,5–7,5%. Concesionario: 7–9%. Sin buen crédito: 14–19%.</span>
+      </div>
+
+      <div class="group-title">Mantenerlo</div>
+      <div class="field">
+        <div class="field-row"><label for="ins">Seguro (Juan en la póliza de Dayana)</label><output id="insOut"></output></div>
+        <input type="range" id="ins" min="150" max="650" step="10">
+        <span class="hint">Hombre de 17 años en NJ: suma $290–500 al mes. Póliza propia: $425–700. Se ajusta según el carro.</span>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="miles">Millas al mes</label><output id="milesOut"></output></div>
+        <input type="range" id="miles" min="200" max="1600" step="50">
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="gas">Gasolina regular ($/galón)</label><output id="gasOut"></output></div>
+        <input type="range" id="gas" min="3" max="5.5" step="0.05">
+        <span class="hint">Promedio NJ (AAA, 18 oct 2026): $4,25.</span>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="other">Peajes, parqueo, lavado, asistencia</label><output id="otherOut"></output></div>
+        <input type="range" id="other" min="0" max="200" step="5">
+      </div>
+
+      <div class="group-title">El dinero</div>
+      <div class="field">
+        <div class="field-row"><label for="income">Ingreso de Juan</label><output id="incomeOut"></output></div>
+        <input type="range" id="income" min="0" max="2500" step="25">
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="family">Aporte de la familia</label><output id="familyOut"></output></div>
+        <input type="range" id="family" min="0" max="1000" step="25">
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="save">Ahorro mensual mientras espera</label><output id="saveOut"></output></div>
+        <input type="range" id="save" min="0" max="1500" step="25">
+        <span class="hint">Sin carro no hay seguro ni gasolina, así que puede ahorrar casi todo.</span>
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="goal">Meta de pago inicial</label><output id="goalOut"></output></div>
+        <input type="range" id="goal" min="1000" max="10000" step="250">
+      </div>
+      <div class="field">
+        <div class="field-row"><label for="reserve">Colchón que no se toca</label><output id="reserveOut"></output></div>
+        <input type="range" id="reserve" min="0" max="3000" step="100">
+        <span class="hint">Para el deducible del seguro o una reparación.</span>
+      </div>
+      <button type="button" class="btn ghost" id="resetBtn">Volver a los valores iniciales</button>
+    </div>
+
+    <div class="results">
+      <div class="kpis">
+        <div class="kpi hero-k" id="kpiGapBox"><span class="l" id="kpiGapLabel">Le falta cada mes</span><span class="v num" id="kpiGap"></span><span class="s" id="kpiGapSub"></span></div>
+        <div class="kpi"><span class="l">Costo total al mes</span><span class="v num" id="kpiTotal"></span><span class="s" id="kpiTotalSub"></span></div>
+        <div class="kpi"><span class="l">Cuota del crédito</span><span class="v num" id="kpiPmt"></span><span class="s" id="kpiPmtSub"></span></div>
+        <div class="kpi"><span class="l">Intereses que pagará</span><span class="v num" id="kpiInt"></span><span class="s" id="kpiIntSub"></span></div>
+      </div>
+      <div class="two">
+        <div class="panel">
+          <h3>A dónde se va el dinero cada mes</h3>
+          <div class="chart-box donut"><canvas id="cDonut" role="img" aria-label="Desglose del costo mensual"></canvas></div>
+          <div class="legend" id="donutLegend"></div>
+        </div>
+        <div class="panel">
+          <h3>Lo que debe vs. lo que vale el carro</h3>
+          <div class="legend-inline"><span><i class="sw" style="background:var(--s2)"></i>Saldo del crédito</span><span><i class="sw" style="background:var(--s1)"></i>Valor del carro</span></div>
+          <div class="chart-box"><canvas id="cEquity" role="img" aria-label="Saldo del crédito frente al valor del carro"></canvas></div>
+          <p class="note" id="equityNote"></p>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Compra completa (“out-the-door”) en NJ</h3>
+        <div class="scroll" style="border:0"><table><tbody id="otdTable"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. Cuándo -->
+<section id="cuando">
+  <div class="sec-head">
+    <span class="eyebrow">3 · ¿Cuándo comprar?</span>
+    <h2>Si esperas y ahorras, ¿en qué mes cuadran las cuentas?</h2>
+    <p class="lede">Cada mes que esperas, el ahorro crece (sube la inicial y baja la cuota) y el mismo tipo de carro se abarata un poco. Comprar tiene sentido cuando la línea azul baja hasta la verde.</p>
+  </div>
+  <div class="panel">
+    <div class="field-row"><span class="flabel" id="goalLabel"></span><span class="flabel num" id="goalPct"></span></div>
+    <div class="progress"><i id="goalBar"></i></div>
+    <div class="cal" id="cal"></div>
+    <div class="legend-inline"><span><i class="sw" style="background:var(--s1)"></i>Mes en que llegas a la meta de inicial</span><span><i class="sw" style="background:var(--good)"></i>Mes en que el carro cabe en tu dinero</span><span><i class="sw" style="background:var(--accent-soft);border:1px solid var(--line)"></i>Graduación</span></div>
+  </div>
+  <div class="panel">
+    <div class="legend-inline"><span><i class="sw" style="background:var(--s1)"></i>Costo total al mes si compras ese mes</span><span><i class="sw" style="background:var(--good)"></i>Dinero disponible al mes</span><span>Pasa el dedo por la gráfica para ver la inicial de cada mes</span></div>
+    <div class="chart-box tall"><canvas id="cWhen" role="img" aria-label="Costo mensual según el mes de compra"></canvas></div>
+    <div class="callout" id="whenText"></div>
+  </div>
+</section>
+
+<!-- 4. Inicial y plazo -->
+<section id="inicial">
+  <div class="sec-head">
+    <span class="eyebrow">4 · Inicial y plazo</span>
+    <h2>Cuánto pagar de inicial para que los intereses no pesen</h2>
+    <p class="lede">Cada celda es la cuota del crédito y, debajo, el costo total del carro al mes. Verde: alcanza con el dinero disponible. Amarillo: faltan menos de $200. Rojo: faltan más. El recuadro negro es tu escenario actual.</p>
+  </div>
+  <div class="two">
+    <div class="scroll"><table class="matrix" id="matrix"></table></div>
+    <div class="panel">
+      <h3>Intereses totales según inicial y plazo</h3>
+      <div class="legend-inline" id="intLegend"></div>
+      <div class="chart-box"><canvas id="cInterest" role="img" aria-label="Intereses totales según inicial y plazo"></canvas></div>
+      <p class="note">Un plazo largo baja la cuota pero casi duplica los intereses, y deja más tiempo debiendo más de lo que vale el carro.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 5. Comparar -->
+<section id="comparar">
+  <div class="sec-head">
+    <span class="eyebrow">5 · Comparar</span>
+    <h2>Dos carros, frente a frente</h2>
+    <p class="lede">En el radar, más grande es mejor en cada punta. En las barras, más corto es más barato.</p>
+  </div>
+  <div class="panel">
+    <div class="cmp-pick">
+      <div class="cmp-card" id="cmpA"></div>
+      <div class="cmp-card" id="cmpB"></div>
+    </div>
+    <div class="two">
+      <div>
+        <div class="legend-inline" id="radarLegend"></div>
+        <div class="chart-box radar"><canvas id="cRadar" role="img" aria-label="Comparación de puntajes"></canvas></div>
+      </div>
+      <div>
+        <div class="legend-inline" id="cmpBarLegend"></div>
+        <div class="chart-box radar"><canvas id="cCmpBar" role="img" aria-label="Costo mensual por categoría"></canvas></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 6. Todos los carros -->
+<section id="carros">
+  <div class="sec-head">
+    <span class="eyebrow">6 · Todos los carros</span>
+    <h2>Los que vio Juan, las mejores opciones cerca y los que añadas</h2>
+    <p class="lede" id="carsLede">Ordenados por puntaje. El costo al mes usa la configuración actual del simulador.</p>
+  </div>
+
+  <details class="add" id="addBox">
+    <summary>＋ Añadir un carro por link</summary>
+    <div class="add-body">
+      <p class="note">Pega el link o el mensaje que compartes desde Carfax, Cars.com, CarGurus o cualquier página. Si trae el VIN (Carfax lo trae), el año, la marca y el modelo se llenan solos con la base de datos de NHTSA. Revisa los campos y completa lo que falte.</p>
+      <textarea id="pasteIn" placeholder="Ej.: Check out this vehicle I found on CARFAX: 2023 Hyundai Sonata - $16,875 … https://carfax-app.onelink.me/…"></textarea>
+      <div class="car-actions"><button type="button" class="btn solid" id="parseBtn">Analizar link</button><button type="button" class="btn ghost" id="manualBtn">Llenar a mano</button></div>
+      <div class="status" id="parseStatus" hidden></div>
+      <form id="addForm" hidden>
+        <div class="form-grid">
+          <div class="field"><label for="fYear">Año</label><input type="number" id="fYear" min="2000" max="2027" required></div>
+          <div class="field"><label for="fMake">Marca</label><input type="text" id="fMake" list="makeList" required></div>
+          <div class="field"><label for="fModel">Modelo</label><input type="text" id="fModel" list="modelList" required></div>
+          <div class="field"><label for="fTrim">Versión</label><input type="text" id="fTrim" placeholder="LE, SEL, SV…"></div>
+          <div class="field"><label for="fPrice">Precio ($)</label><input type="number" id="fPrice" min="1000" max="80000" step="1" required></div>
+          <div class="field"><label for="fMiles">Millas</label><input type="number" id="fMiles" min="0" max="300000" step="1" required></div>
+          <div class="field"><label for="fDealer">Concesionario</label><input type="text" id="fDealer"></div>
+          <div class="field"><label for="fCity">Ciudad</label><input type="text" id="fCity" placeholder="Edison, NJ"></div>
+          <div class="field"><label for="fZip">ZIP del concesionario</label><input type="text" id="fZip" inputmode="numeric" maxlength="5"></div>
+          <div class="field"><label for="fAcc">¿Accidentes?</label><select id="fAcc"><option value="unk">No sé</option><option value="no">No, ninguno</option><option value="yes">Sí, reportado</option></select></div>
+          <div class="field"><label for="fOwners">Dueños anteriores</label><select id="fOwners"><option value="">No sé</option><option value="1">1</option><option value="2">2</option><option value="3">3 o más</option></select></div>
+          <div class="field"><label for="fTitle">Título</label><select id="fTitle"><option value="clean">Limpio</option><option value="rebuilt">Rebuilt / salvage</option></select></div>
+          <label class="check"><input type="checkbox" id="fDoc"> El precio ya incluye el doc fee</label>
+          <label class="check"><input type="checkbox" id="fCpo"> Certificado de fábrica (CPO)</label>
+          <div class="field wide"><label for="fVin">VIN</label><input type="text" id="fVin" maxlength="17" autocapitalize="characters"></div>
+          <div class="field wide"><label for="fImg">Foto (URL de la imagen)</label><input type="url" id="fImg"></div>
+          <div class="field wide"><label for="fUrl">Link del anuncio</label><input type="url" id="fUrl"></div>
+        </div>
+        <datalist id="makeList"></datalist><datalist id="modelList"></datalist>
+        <div class="car-actions" style="margin-top:12px"><button type="submit" class="btn solid">Añadir y analizar</button><button type="button" class="btn ghost" id="cancelAdd">Cancelar</button></div>
+      </form>
+    </div>
+  </details>
+
+  <div class="toolbar">
+    <div class="filters" id="filters" role="group" aria-label="Filtrar carros">
+      <button type="button" data-f="all" aria-pressed="true">Todos</button>
+      <button type="button" data-f="good" aria-pressed="false">Recomendados</button>
+      <button type="button" data-f="juan" aria-pressed="false">Los que vio Juan</button>
+      <button type="button" data-f="new" aria-pressed="false">Nuevas opciones</button>
+      <button type="button" data-f="added" aria-pressed="false">Añadidos</button>
+    </div>
+    <button type="button" class="btn" id="shareBtn">Compartir mi lista</button>
+  </div>
+  <div class="share-out" id="shareOut" hidden><input type="text" id="shareUrl" readonly aria-label="Enlace para compartir"><button type="button" class="btn" id="shareCopy">Copiar</button></div>
+  <div class="gallery" id="gallery"></div>
+
+  <div class="panel">
+    <h3>Costo real de tenerlo 3 años</h3>
+    <p class="note">Lo que se pierde de verdad en 36 meses con la configuración actual: lo que baja el valor del carro más impuestos y trámites, intereses, seguro, gasolina y mantenimiento. Lo que el carro todavía vale al final no cuenta como gasto. Solo carros que no están descartados.</p>
+    <div class="legend-inline" id="tcoLegend"></div>
+    <div class="chart-box" id="tcoBox" style="height:440px"><canvas id="cTco" role="img" aria-label="Costo de 3 años por carro"></canvas></div>
+  </div>
+</section>
+
+<!-- 7. Plan -->
+<section id="plan">
+  <div class="sec-head">
+    <span class="eyebrow">7 · Plan de compra</span>
+    <h2>Recomendación y pasos con fecha</h2>
+  </div>
+  <div class="callout" id="recoText"></div>
+  <div class="panel">
+    <div class="steps">
+      <div class="step"><div class="when">Oct–Nov 2026</div><div><h3>Cotizar el seguro antes de mirar más carros</h3><p>Es el gasto más grande y el que decide si el plan es viable. Dayana llama a su aseguradora y pide el costo de añadir a Juan con el VIN de 2 o 3 carros finalistas.</p><ul><li>Pedir descuento de buen estudiante (promedio B o mejor, hasta 15–25%) y de curso de manejo (5–15%).</li><li>Preguntar por programa de monitoreo (Snapshot, Steer Clear): 15–30% menos si maneja bien.</li><li>Comparar con 2 aseguradoras más (NJM, GEICO, Progressive, State Farm).</li></ul></div></div>
+      <div class="step"><div class="when">Nov 2026</div><div><h3>Preaprobación del crédito en una cooperativa</h3><p>Raritan Bay FCU está en Sayreville (491 Raritan St; usados desde 5,92%). Affinity FCU ofrece desde 5,45%. Ir al concesionario con la tasa ya aprobada evita que suban el interés.</p><ul><li>Juan es menor de edad: en la práctica el crédito y el título quedan a nombre de Dayana, y él se añade después.</li><li>Cada cuota atrasada daña el crédito de Dayana, no el de Juan.</li></ul></div></div>
+      <div class="step"><div class="when">Mientras espera</div><div><h3>Ahorrar todo lo que pueda</h3><p>Sin carro no hay seguro ni gasolina. Cada mes de ahorro sube la inicial y baja la cuota (sección 3). Meta sugerida: inicial de $5.000 o más y un colchón de $1.000 aparte.</p></div></div>
+      <div class="step"><div class="when">Al elegir</div><div><h3>Revisar el carro antes de firmar</h3><ul><li>Pedir el reporte Carfax o AutoCheck completo; no aceptar “accidente reportado” sin detalles.</li><li>Inspección con un mecánico independiente ($100–200). Sí o sí en concesionarios independientes.</li><li>Buscar recalls abiertos por VIN en nhtsa.gov/recalls.</li><li>En Hyundai y Kia anteriores a 2022 con llave: exigir prueba de la actualización antirrobo.</li><li>Pedir el precio “out-the-door” por escrito: precio + doc fee + 6,625% de impuesto + título y registro. Nada de “paquetes” o protecciones extra.</li></ul></div></div>
+      <div class="step"><div class="when">Jun 2027</div><div><h3>Graduación</h3><p>Si pasa a trabajar más horas, el ingreso cambia todo: con $900–1.000 al mes el carro se vuelve viable sin ayuda. Prueba el control “Ingreso de Juan”.</p></div></div>
+    </div>
+  </div>
+  <div class="cols3">
+    <div class="card"><h3>Reglas de manejo para Juan (NJ)</h3><ul><li>Licencia probatoria desde los 17, después del examen práctico y 50 horas supervisadas.</li><li>No manejar entre 11:01 pm y 5:00 am.</li><li>Solo un pasajero que no sea de la familia, y solo con un padre en el carro.</li><li>Prohibido el celular, ni manos libres.</li><li>Calcomanía roja en ambas placas ($4). Multa de $100 por infracción.</li></ul></div>
+    <div class="card"><h3>Gastos que se olvidan</h3><ul><li>Deducible del seguro si choca: $500–1.000 de golpe.</li><li>Llantas nuevas cada 3–5 años: $400–700.</li><li>Cambios de aceite: $200–400 al año.</li><li>Inspección NJ cada 2 años (gratis en estación estatal).</li><li>Registro anual: $46,50 (compactos) o $71,50 (sedanes medianos).</li></ul></div>
+    <div class="card"><h3>Qué carros evitar</h3><ul><li>Toyota Mirai: es de hidrógeno y NJ no tiene ninguna estación pública. Por eso está tan barato.</li><li>Títulos “rebuilt” o “salvage”, aunque el precio tiente.</li><li>Carros con accidente reportado sin reporte completo.</li><li>Autos deportivos (Mustang, Charger): el seguro para 17 años se dispara.</li><li>Plazos de 72 meses: terminaría pagando un carro de 9–10 años.</li></ul></div>
+  </div>
+</section>
+
+<section id="fuentes">
+  <div class="sec-head"><span class="eyebrow">Fuentes</span><h3>De dónde salen los números</h3></div>
+  <ul class="sources">
+    <li>Gasolina NJ $4,245 (18 oct 2026): <a href="https://gasprices.aaa.com/?state=NJ" target="_blank" rel="noopener">AAA</a></li>
+    <li>Seguro adolescente 17 años añadido a póliza (EE. UU.) ~$4.214/año: <a href="https://www.carinsurance.com/articles/car-insurance-17-year-old.aspx" target="_blank" rel="noopener">CarInsurance.com</a></li>
+    <li>Seguro 17 años en NJ ~$6.068/año: <a href="https://www.moneygeek.com/insurance/auto/average-cost-car-insurance-new-jersey/" target="_blank" rel="noopener">MoneyGeek</a>; póliza propia: <a href="https://insurify.com/car-insurance/new-jersey/teenagers/" target="_blank" rel="noopener">Insurify</a></li>
+    <li>Tasas de crédito usado Q2 2026 (prime 8,81%, promedio 11,19%): <a href="https://www.experian.com/blogs/ask-experian/used-car-loan-rates/" target="_blank" rel="noopener">Experian</a></li>
+    <li>Cooperativas: <a href="https://www.affinityfcu.com/personal-banking/borrow/auto-loans/auto-preapproval" target="_blank" rel="noopener">Affinity FCU</a>, <a href="https://www.creditunionsonline.com/trends-auto-loans-1463.html" target="_blank" rel="noopener">Raritan Bay FCU</a></li>
+    <li>Registro y título NJ: <a href="https://www.nj.gov/mvc/vehicles/regfees.htm" target="_blank" rel="noopener">NJ MVC</a>; doc fee promedio NJ ~$711: <a href="https://otdcheck.com/guides/new-jersey-dealer-fees" target="_blank" rel="noopener">OTDCheck</a></li>
+    <li>Reglas de licencia probatoria: <a href="https://www.nj.gov/mvc/about/gdlsafety.htm" target="_blank" rel="noopener">NJ MVC GDL</a></li>
+    <li>Reparaciones anuales por modelo: <a href="https://repairpal.com/cars/compare/toyota-corolla-vs-nissan-sentra" target="_blank" rel="noopener">RepairPal</a>; costos por milla: <a href="https://newsroom.aaa.com/wp-content/uploads/2025/09/AAA-Brochure-Your-Driving-Cost-9.2025.pdf" target="_blank" rel="noopener">AAA 2025</a></li>
+    <li>Depreciación por modelo: <a href="https://www.iseecars.com/resale-value/compact-cars" target="_blank" rel="noopener">iSeeCars</a></li>
+    <li>Decodificador de VIN y recalls: <a href="https://vpic.nhtsa.dot.gov/api/" target="_blank" rel="noopener">NHTSA vPIC</a>, <a href="https://www.nhtsa.gov/recalls" target="_blank" rel="noopener">NHTSA Recalls</a></li>
+    <li>Listados: <a href="https://www.cars.com/shopping/results/?stock_type=used&amp;zip=08872&amp;maximum_distance=50" target="_blank" rel="noopener">Cars.com, 50 millas de 08872</a>, Carfax (links de Juan), sitios de concesionarios</li>
+    <li>Hidrógeno en NJ: <a href="https://afdc.energy.gov/fuels/hydrogen-locations" target="_blank" rel="noopener">Alternative Fuels Data Center</a></li>
+  </ul>
+  <footer>Estimaciones con datos públicos al 18 de octubre de 2026. Los precios de carros cambian a diario y el seguro real depende de la cotización. Los carros que añades se guardan solo en este dispositivo; usa “Compartir mi lista” para pasarlos a otro. Confirmar todo con el concesionario y la aseguradora antes de firmar.</footer>
+</section>
+
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
