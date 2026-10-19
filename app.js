@@ -948,9 +948,11 @@
     status("Buscando recalls en NHTSA…");
     c.recalls = await recallCount(c.make, c.model, c.year);
     ADDED = ADDED.filter(x => x.id !== c.id && (!c.vin || x.vin !== c.vin));
+    c.upd = Date.now(); c.who = SYNC.who || "";
     ADDED.push(c);
     saveAdded();
     rebuildAll();
+    syncPush(carItem(c));
     const e = carById(c.id);
     $("addForm").hidden = true; $("pasteIn").value = ""; $("parseStatus").hidden = true; $("addBox").open = false; draft = null;
     pickCar(c.id);
@@ -975,8 +977,17 @@
   function saveStateSoon() {
     clearTimeout(saveT);
     saveT = setTimeout(() => { try { localStorage.setItem(STATE_KEY, JSON.stringify({ S, cmpA, cmpB, at: Date.now() })); } catch { /* sin almacenamiento */ } }, 300);
+    syncStateSoon();
   }
-  function loadBases() { try { const j = JSON.parse(localStorage.getItem(BASE_KEY) || "[]"); return Array.isArray(j) ? j : []; } catch { return []; } }
+  function loadBases() {
+    try {
+      const j = JSON.parse(localStorage.getItem(BASE_KEY) || "[]");
+      if (!Array.isArray(j)) return [];
+      j.forEach((b, i) => { const t = Date.parse(b.at) || Date.now(); b.upd = b.upd || t; b.activeAt = b.activeAt || t + i; });
+      return j;
+    } catch { return []; }
+  }
+  const sortBases = () => BASES.sort((a, b) => (a.activeAt || 0) - (b.activeAt || 0));
   function saveBases() { try { localStorage.setItem(BASE_KEY, JSON.stringify(BASES)); } catch { /* sin almacenamiento */ } }
   const activeBase = () => BASES[BASES.length - 1] || null;
 
@@ -988,9 +999,12 @@
   function saveBaseline() {
     const m = metricsNow();
     const n = BASES.length ? Math.max(...BASES.map(b => b.n || 0)) + 1 : 1;
-    BASES.push({ id: Date.now().toString(36), n, label: `Línea base ${n}`, at: new Date().toISOString(), S: { ...S }, m });
-    while (BASES.length > MAX_BASES) BASES.shift();
+    const now = Date.now();
+    const base = { id: now.toString(36) + Math.random().toString(36).slice(2, 5), n, label: `Línea base ${n}`, at: new Date(now).toISOString(), S: { ...S }, m, upd: now, activeAt: now, who: SYNC.who || "" };
+    BASES.push(base);
+    while (BASES.length > MAX_BASES) { const old = BASES.shift(); syncPush(baseItem(old, true)); }
     saveBases(); renderBases(); renderGoal2();
+    syncPush(baseItem(base));
     toast(`Guardada “Línea base ${n}” como tu objetivo.`);
   }
   function loadBase(id) {
@@ -1025,12 +1039,18 @@
     if (lowerBetter == null) return ["neutral", txt];
     return [(d < 0) === lowerBetter ? "better" : "worse", txt];
   }
+  function syncChip() {
+    if (!SYNC.url) return "";
+    if (!SYNC.code) return '<a class="btn ghost" href="#lineas">Conectar familia</a>';
+    const cls = SYNC.error ? "err" : "ok";
+    return `<a class="btn ghost sync-chip ${cls}" href="#lineas" title="${SYNC.last ? "Sincronizado " + ago(SYNC.last) : ""}">${SYNC.busy ? "Sincronizando…" : SYNC.error ? "Sin sincronizar" : "Sincronizado"}</a>`;
+  }
   function renderGoal2() {
     const b = activeBase(), el = $("goalbar");
     if (!b) {
       el.className = "goalbar empty";
       el.innerHTML = `<div class="gb-tag"><b>Sin objetivo todavía</b><span>Mueve los valores hasta que te guste el plan y guárdalo como línea base: quedará aquí arriba como la meta a alcanzar.</span></div>
-        <div class="gb-actions"><button type="button" class="btn solid" data-gb="save">Guardar línea base</button></div>`;
+        <div class="gb-actions"><button type="button" class="btn solid" data-gb="save">Guardar línea base</button>${syncChip()}</div>`;
       ["kpiGapGoal", "kpiTotalGoal", "kpiPmtGoal", "kpiIntGoal", "kNeedGoal", "kLeftGoal"].forEach(id => { $(id).textContent = ""; });
       return;
     }
@@ -1044,7 +1064,7 @@
         const hit = lb != null && cls !== "worse";
         return `<div class="gm${hit ? " hit" : ""}" title="Objetivo: ${esc(f(b.m[k]))} · Ahora: ${esc(f(cur[k]))}"><span class="k">${lab}</span><span class="o">${f(b.m[k])}</span><span class="d ${cls}">Ahora ${f(cur[k])}${cls === "same" ? "" : " · " + txt}</span></div>`;
       }).join("")}</div>
-      <div class="gb-actions"><button type="button" class="btn ghost" data-gb="restore">Volver al objetivo</button><button type="button" class="btn solid" data-gb="save">Guardar nueva</button><a class="btn ghost" href="#lineas">Historial (${BASES.length})</a></div>`;
+      <div class="gb-actions"><button type="button" class="btn ghost" data-gb="restore">Volver al objetivo</button><button type="button" class="btn solid" data-gb="save">Guardar nueva</button><a class="btn ghost" href="#lineas">Historial (${BASES.length})</a>${syncChip()}</div>`;
     const chip = (id, k, f, lb) => { const [cls, txt] = delta(k, cur[k], b.m[k], lb); const e = $(id); e.className = "gc " + cls; e.textContent = `Objetivo ${f(b.m[k])}${cls === "same" ? " · lo cumples" : " · " + txt}`; };
     chip("kpiGapGoal", "gap", fmtGap, true); chip("kpiTotalGoal", "total", fmt, true); chip("kpiPmtGoal", "pmt", fmt, true);
     chip("kpiIntGoal", "interest", fmt, true); chip("kNeedGoal", "hours", fmtH, true);
@@ -1052,14 +1072,14 @@
   }
   function renderBases() {
     const sec = $("lineas");
-    sec.hidden = BASES.length === 0;
+    sec.hidden = BASES.length === 0 && !SYNC.url;
     const act = activeBase();
     $("bases").innerHTML = [...BASES].reverse().map(b => {
       const isAct = b === act;
       const when = new Date(b.at);
       return `<article class="base${isAct ? " active" : ""}">
         <div class="bt"><input type="text" value="${esc(b.label)}" data-rename="${b.id}" aria-label="Nombre de la línea base" maxlength="40">${isAct ? '<span class="pill goal">Objetivo actual</span>' : ""}</div>
-        <span class="small">${esc(b.m.carName)} · ${when.toLocaleString("es-CO", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
+        <span class="small">${esc(b.m.carName)} · ${when.toLocaleString("es-CO", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}${b.who ? ` · guardada por ${esc(b.who)}` : ""}</span>
         <dl><dt>Costo al mes</dt><dd>${fmt(b.m.total)}</dd><dt>Falta / sobra</dt><dd>${fmtGap(b.m.gap)}</dd><dt>Cuota · plazo</dt><dd>${fmt(b.m.pmt)} · ${b.S.term} m</dd>
         <dt>Inicial</dt><dd>${fmt(b.m.down)}</dd><dt>Ingreso usado</dt><dd>${fmt(b.m.income)}${b.S.extraOn ? " (con trabajo)" : ""}</dd><dt>Horas extra/sem</dt><dd>${fmtH(b.m.hours)}</dd><dt>Cuadra en</dt><dd>${fmtFirst(b.m.first)}</dd></dl>
         <div class="car-actions"><button type="button" class="btn solid" data-bload="${b.id}">Cargar valores</button>${isAct ? "" : `<button type="button" class="btn" data-bact="${b.id}">Hacer objetivo</button>`}<button type="button" class="btn ghost" data-bdel="${b.id}">Borrar</button></div>
@@ -1075,16 +1095,192 @@
     $("bases").addEventListener("click", (e) => {
       const ld = e.target.closest("[data-bload]"), ac = e.target.closest("[data-bact]"), dl = e.target.closest("[data-bdel]");
       if (ld) { loadBase(ld.dataset.bload); toast("Valores cargados. Muévelos y compara con el objetivo de arriba."); document.getElementById("tu-carro").scrollIntoView({ behavior: "smooth" }); }
-      if (ac) { const i = BASES.findIndex(x => x.id === ac.dataset.bact); BASES.push(BASES.splice(i, 1)[0]); saveBases(); renderBases(); renderGoal2(); toast("Ahora ese es tu objetivo."); }
+      if (ac) { const i = BASES.findIndex(x => x.id === ac.dataset.bact); const b = BASES.splice(i, 1)[0]; b.activeAt = b.upd = Date.now(); BASES.push(b); saveBases(); renderBases(); renderGoal2(); syncPush(baseItem(b)); toast("Ahora ese es tu objetivo."); }
       if (dl) {
         if (dl.dataset.confirm !== "1") { dl.dataset.confirm = "1"; dl.textContent = "¿Seguro? Toca otra vez"; setTimeout(() => { dl.dataset.confirm = ""; dl.textContent = "Borrar"; }, 3000); return; }
+        const gone = BASES.find(x => x.id === dl.dataset.bdel);
         BASES = BASES.filter(x => x.id !== dl.dataset.bdel); saveBases(); renderBases(); renderGoal2(); toast("Línea base borrada.");
+        if (gone) syncPush(baseItem(gone, true));
       }
     });
     $("bases").addEventListener("change", (e) => {
       const r = e.target.closest("[data-rename]"); if (!r) return;
       const b = BASES.find(x => x.id === r.dataset.rename); if (!b) return;
-      b.label = r.value.trim() || b.label; saveBases(); renderGoal2();
+      b.label = r.value.trim() || b.label; b.upd = Date.now(); saveBases(); renderGoal2(); syncPush(baseItem(b));
+    });
+  }
+
+
+  // ---------- Sincronización con la hoja de Google (Apps Script) ----------
+  const SYNC_KEY = "juanjo.sync.v1", PEND_KEY = "juanjo.sync.pending.v1";
+  const SYNC = { url: "", code: "", who: "", last: 0, error: "", busy: false, states: [] };
+  let PENDING = [];
+  async function loadSyncConfig() {
+    try { const j = await fetch("data/sync.json", { cache: "no-store" }).then(r => r.json()); SYNC.url = j.url || ""; } catch { /* sin config */ }
+    try {
+      const j = JSON.parse(localStorage.getItem(SYNC_KEY) || "{}");
+      if (j.url && !SYNC.url) SYNC.url = j.url;
+      SYNC.code = j.code || ""; SYNC.who = j.who || "";
+      PENDING = JSON.parse(localStorage.getItem(PEND_KEY) || "[]");
+    } catch { /* sin almacenamiento */ }
+  }
+  function saveSyncLocal() {
+    try {
+      localStorage.setItem(SYNC_KEY, JSON.stringify({ code: SYNC.code, who: SYNC.who, url: SYNC.url }));
+      localStorage.setItem(PEND_KEY, JSON.stringify(PENDING));
+    } catch { /* sin almacenamiento */ }
+  }
+  const syncOn = () => !!(SYNC.url && SYNC.code);
+  function baseItem(b, gone) {
+    return { tipo: "base", id: b.id, quien: b.who || SYNC.who, actualizado: gone ? Date.now() : b.upd, borrado: !!gone,
+      resumen: gone ? `(borrada) ${b.label}` : `${b.label} · ${b.m.carName} · ${fmt(b.m.total)}/mes · ${fmtGap(b.m.gap)} · inicial ${fmt(b.m.down)} · ${b.S.term} meses${b.S.extraOn ? ` · trabaja ${h1(b.S.hours)} h/sem` : ""}`,
+      datos: gone ? null : b };
+  }
+  function carItem(c, gone) {
+    return { tipo: "carro", id: c.id, quien: c.who || SYNC.who, actualizado: gone ? Date.now() : (c.upd || Date.now()), borrado: !!gone,
+      resumen: `${gone ? "(quitado) " : ""}${c.name} · ${fmt(c.price)} · ${(c.miles || 0).toLocaleString("es-CO")} mi${c.url ? " · " + c.url : ""}`, datos: gone ? null : c };
+  }
+  function syncPush(item) {
+    if (!SYNC.url) return;
+    PENDING = PENDING.filter(p => !(p.tipo === item.tipo && p.id === item.id));
+    PENDING.push(item); saveSyncLocal();
+    syncFlush();
+  }
+  async function syncFlush() {
+    if (!syncOn() || !PENDING.length || SYNC.flushing) return;
+    SYNC.flushing = true;
+    const batch = PENDING.slice(0, 40);
+    try {
+      const r = await fetch(SYNC.url, { method: "POST", body: JSON.stringify({ codigo: SYNC.code, items: batch }) });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "error");
+      PENDING = PENDING.filter(p => !batch.includes(p)); saveSyncLocal();
+      SYNC.last = Date.now(); SYNC.error = "";
+    } catch (err) {
+      SYNC.error = String(err.message) === "codigo" ? "codigo" : "red";
+    } finally {
+      SYNC.flushing = false; renderSync();
+      if (!SYNC.error && PENDING.length) syncFlush();
+    }
+  }
+  let stateT = 0;
+  function syncStateSoon() {
+    if (!syncOn() || !SYNC.who) return;
+    clearTimeout(stateT);
+    stateT = setTimeout(() => {
+      const mt = metricsNow();
+      syncPush({ tipo: "estado", id: SYNC.who, quien: SYNC.who, actualizado: Date.now(), borrado: false,
+        resumen: `Probando: ${mt.carName} · ${fmt(mt.total)}/mes · ${fmtGap(mt.gap)} · inicial ${fmt(mt.down)} · ${S.term} meses`,
+        datos: { S: { ...S }, m: mt } });
+    }, 4000);
+  }
+  // Trae lo de la hoja y lo mezcla con lo local: gana lo más reciente.
+  async function syncPull(silent) {
+    if (!syncOn() || SYNC.busy) return;
+    SYNC.busy = true; if (!silent) renderSync();
+    try {
+      const r = await fetch(SYNC.url + (SYNC.url.includes("?") ? "&" : "?") + "codigo=" + encodeURIComponent(SYNC.code), { cache: "no-store" });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "error");
+      mergeRows(j.filas || []);
+      SYNC.last = Date.now(); SYNC.error = "";
+      await syncFlush();
+    } catch (err) {
+      SYNC.error = String(err.message) === "codigo" ? "codigo" : "red";
+    } finally {
+      SYNC.busy = false; renderSync();
+    }
+  }
+  function mergeRows(rows) {
+    let changed = false;
+    const parse = (t) => { try { return JSON.parse(t); } catch { return null; } };
+    const remoteBase = new Set(), remoteCar = new Set();
+    rows.forEach(row => {
+      if (row.tipo === "base") {
+        remoteBase.add(row.id);
+        const i = BASES.findIndex(b => b.id === row.id);
+        if (row.borrado) { if (i >= 0 && (BASES[i].upd || 0) <= row.actualizado) { BASES.splice(i, 1); changed = true; } return; }
+        const d = parse(row.datos); if (!d || !d.S || !d.m) return;
+        if (i < 0) { BASES.push(d); changed = true; }
+        else if ((d.upd || 0) > (BASES[i].upd || 0)) { BASES[i] = d; changed = true; }
+      } else if (row.tipo === "carro") {
+        remoteCar.add(row.id);
+        const i = ADDED.findIndex(c => c.id === row.id);
+        if (row.borrado) { if (i >= 0 && (ADDED[i].upd || 0) <= row.actualizado) { ADDED.splice(i, 1); changed = true; } return; }
+        const d = parse(row.datos); if (!d || !d.make || !d.price) return;
+        d.img = d.img ? safeUrl(d.img) || (String(d.img).startsWith("img/") ? d.img : null) : null; d.url = d.url ? safeUrl(d.url) : "";
+        if (i < 0) { ADDED.push(d); changed = true; }
+        else if ((d.upd || 0) > (ADDED[i].upd || 0)) { ADDED[i] = d; changed = true; }
+      }
+    });
+    SYNC.states = rows.filter(r => r.tipo === "estado" && !r.borrado && r.id !== SYNC.who).map(r => ({ who: r.id, at: r.actualizado, d: parse(r.datos) })).filter(x => x.d && x.d.S);
+    // Subir lo local que la hoja todavía no tiene (por ejemplo, al conectar por primera vez).
+    BASES.filter(b => !remoteBase.has(b.id)).forEach(b => { if (!b.who) b.who = SYNC.who; syncPush(baseItem(b)); });
+    ADDED.filter(c => !remoteCar.has(c.id)).forEach(c => { c.upd = c.upd || Date.now(); syncPush(carItem(c)); });
+    if (changed) {
+      sortBases();
+      while (BASES.length > MAX_BASES * 2) BASES.shift();
+      saveBases(); saveAdded(); rebuildAll();
+      renderBases(); renderGoal2(); schedule();
+      toast("Se actualizaron las líneas base desde la hoja de la familia.");
+    }
+  }
+  let pullTimer = 0;
+  function startSync() {
+    if (!syncOn()) return;
+    syncPull(true);
+    clearInterval(pullTimer);
+    pullTimer = setInterval(() => { if (document.visibilityState === "visible") syncPull(true); }, 60000);
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") syncPull(true); });
+  const ago = (t) => { const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "hace un momento" : m < 60 ? `hace ${m} min` : m < 1440 ? `hace ${Math.round(m / 60)} h` : `hace ${Math.round(m / 1440)} días`; };
+  function renderSync() {
+    const el = $("syncPanel"); if (!el) return;
+    if (!SYNC.url) {
+      el.innerHTML = `<h3>Ver estos objetivos desde otro aparato</h3><p class="note">Todavía no está activada la conexión con la hoja de Google de la familia. Por ahora las líneas base se guardan solo en este aparato.</p>`;
+      renderGoal2(); return;
+    }
+    if (!SYNC.code) {
+      el.innerHTML = `<h3>Conectar con la hoja de la familia</h3>
+        <p class="note">Escribe tu nombre y el código familiar. Así tus líneas base y los carros que añadas se guardan en la hoja de Google, y papá o mamá los ven desde su celular.</p>
+        <form class="sync-form" id="syncForm"><div class="field"><label for="syncWho">Tu nombre</label><input type="text" id="syncWho" list="whoList" maxlength="20" required value="${esc(SYNC.who)}" placeholder="Juan"></div>
+        <div class="field"><label for="syncCode">Código familiar</label><input type="password" id="syncCode" required autocomplete="off"></div>
+        <button type="submit" class="btn solid">Conectar</button></form>
+        <datalist id="whoList"><option value="Juan"><option value="Papá"><option value="Mamá"></datalist>
+        ${SYNC.error === "codigo" ? '<p class="status err">Ese código no es correcto. Pídeselo a papá.</p>' : ""}`;
+      renderGoal2(); return;
+    }
+    const st = SYNC.busy ? "Sincronizando…" : SYNC.error === "codigo" ? "El código familiar ya no es válido." : SYNC.error === "red" ? `Sin conexión con la hoja. Se reintentará${PENDING.length ? ` (${PENDING.length} cambio(s) pendientes)` : ""}.` : SYNC.last ? `Sincronizado ${ago(SYNC.last)}` : "Conectado";
+    const others = SYNC.states.sort((a, b) => b.at - a.at).map(x => `<div class="who-row"><div><b>${esc(x.who)}</b> está probando: ${esc(x.d.m ? x.d.m.carName : "")} · ${fmt(x.d.m ? x.d.m.total : 0)}/mes · ${esc(fmtGap(x.d.m ? x.d.m.gap : 0))}<div class="small">${ago(x.at)}</div></div><button type="button" class="btn" data-seestate="${esc(x.who)}">Ver su plan</button></div>`).join("");
+    el.innerHTML = `<h3>Conectado con la hoja de la familia</h3>
+      <p class="status ${SYNC.error ? "err" : "ok"}">${esc(st)} · Eres <b>${esc(SYNC.who)}</b></p>
+      ${others || '<p class="note">Cuando alguien más se conecte, aquí verás lo que está probando.</p>'}
+      <div class="car-actions"><button type="button" class="btn solid" id="syncNow">Sincronizar ahora</button><button type="button" class="btn ghost" id="syncOff">Desconectar este aparato</button></div>`;
+    renderGoal2();
+  }
+  function bindSync() {
+    $("lineas").addEventListener("submit", async (e) => {
+      if (e.target.id !== "syncForm") return;
+      e.preventDefault();
+      SYNC.who = $("syncWho").value.trim().slice(0, 20); SYNC.code = $("syncCode").value.trim();
+      SYNC.error = ""; saveSyncLocal();
+      await syncPull();
+      if (SYNC.error === "codigo") { SYNC.code = ""; saveSyncLocal(); renderSync(); return; }
+      startSync(); syncStateSoon();
+      toast(SYNC.error ? "Guardado. Se conectará cuando haya internet." : `Conectado como ${SYNC.who}.`);
+    });
+    $("lineas").addEventListener("click", (e) => {
+      if (e.target.id === "syncNow") syncPull();
+      if (e.target.id === "syncOff") { SYNC.code = ""; SYNC.error = ""; clearInterval(pullTimer); saveSyncLocal(); renderSync(); toast("Este aparato ya no se sincroniza. Tus datos siguen aquí."); }
+      const see = e.target.closest("[data-seestate]");
+      if (see) {
+        const x = SYNC.states.find(s => s.who === see.dataset.seestate); if (!x) return;
+        Object.keys(DEFAULTS).forEach(k => { if (x.d.S[k] != null) S[k] = x.d.S[k]; });
+        if (!carById(S.car)) { S.car = DEFAULTS.car; S.price = carById(S.car).price; }
+        syncInputs(); schedule();
+        toast(`Estás viendo el plan de ${x.who}. Lo que muevas ahora es tuyo.`);
+        document.getElementById("cuentas").scrollIntoView({ behavior: "smooth" });
+      }
     });
   }
 
@@ -1141,6 +1337,7 @@
     $("term").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.term = +b.dataset.v; schedule(); } });
     $("strip").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickCar(b.dataset.pick); });
     bindBases();
+    bindSync();
     document.addEventListener("click", (e) => { const q = e.target.closest('a[href^="#g-"]'); if (q) $("glosario").open = true; });
     if (/^#g-/.test(location.hash)) $("glosario").open = true;
     $("scen").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { S.extraOn = b.dataset.v === "1"; if (S.extraOn && S.hours === 0) S.hours = 28; syncInputs(); schedule(); } });
@@ -1154,7 +1351,9 @@
       if (sim) { pickCar(sim.dataset.sim); document.getElementById("tu-carro").scrollIntoView({ behavior: "smooth" }); }
       if (rm) {
         if (rm.dataset.confirm !== "1") { rm.dataset.confirm = "1"; rm.textContent = "¿Seguro? Toca otra vez"; setTimeout(() => { rm.dataset.confirm = ""; rm.textContent = "Quitar"; }, 3000); return; }
+        const goneCar = ADDED.find(x => x.id === rm.dataset.remove);
         ADDED = ADDED.filter(x => x.id !== rm.dataset.remove); saveAdded(); rebuildAll();
+        if (goneCar) syncPush(carItem(goneCar, true));
         if (!carById(S.car)) pickCar("A"); else schedule();
         toast("Carro quitado de tu lista.");
       }
@@ -1209,6 +1408,7 @@
     }
     ADDED = loadAdded();
     BASES = loadBases();
+    await loadSyncConfig();
     const imported = importHash();
     rebuildAll();
     $("makeList").innerHTML = [...new Set(Object.keys(MODELS.models).map(k => k.split("|")[0]))].map(m => `<option value="${esc(cap(m))}">`).join("");
@@ -1217,6 +1417,8 @@
     bind();
     renderAll();
     renderBases();
+    renderSync();
+    startSync();
     if ("ResizeObserver" in window) new ResizeObserver(([e]) => document.documentElement.style.setProperty("--gb-h", Math.ceil(e.target.getBoundingClientRect().height) + "px")).observe($("goalbar"));
     renderStrip(); renderCompareCards(); renderGallery();
     watchCharts();
