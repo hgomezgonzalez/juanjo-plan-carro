@@ -40,6 +40,8 @@
 
 <div class="goalbar" id="goalbar" aria-live="polite"></div>
 
+<div class="received" id="received" role="status" hidden></div>
+
 <div class="verdict" id="verdict">
   <div class="verdict-icon" id="verdictIcon" aria-hidden="true">…</div>
   <div>
@@ -48,13 +50,20 @@
   </div>
 </div>
 
-<section id="lineas" hidden>
+<section id="lineas">
   <div class="sec-head">
     <span class="eyebrow">Tus líneas base</span>
     <h2>Objetivos guardados</h2>
-    <p class="lede">La última que guardaste es el objetivo que aparece arriba. Puedes cargar cualquiera para seguir jugando desde ahí, hacerla el objetivo o borrarla. Si conectas la hoja de la familia, se ven desde cualquier celular.</p>
+    <p class="lede">La última que guardaste es el objetivo que aparece arriba. Puedes cargar cualquiera para seguir jugando desde ahí, hacerla el objetivo o borrarla. Se guardan en este aparato; para que alguien más las vea, compártelas.</p>
   </div>
-  <div class="panel sync" id="syncPanel"></div>
+  <div class="panel">
+    <h3>Compartir tu plan</h3>
+    <p class="note">Crea un enlace con tus líneas base, lo que estás probando ahora y los carros que añadiste. Mándalo por WhatsApp: quien lo abra verá tu plan igualito. Si cambias algo, vuelve a compartir.</p>
+    <div class="share-row"><div class="field"><label for="meName">Tu nombre</label><input type="text" id="meName" list="whoList" maxlength="20" placeholder="Juan"></div><button type="button" class="btn solid" data-share="1">Compartir mi plan</button></div>
+    <datalist id="whoList"><option value="Juan"><option value="Papá"><option value="Mamá"></datalist>
+    <div class="share-out" id="shareOut" hidden><input type="text" id="shareUrl" readonly aria-label="Enlace para compartir"><button type="button" class="btn" id="shareCopy">Copiar</button></div>
+  </div>
+  <p class="note" id="basesEmpty">Todavía no tienes líneas base. Cuando un plan te guste, toca “Guardar línea base” en la barra de arriba.</p>
   <div class="bases" id="bases"></div>
 </section>
 
@@ -431,9 +440,8 @@
       <button type="button" data-f="new" aria-pressed="false">Nuevas opciones</button>
       <button type="button" data-f="added" aria-pressed="false">Añadidos</button>
     </div>
-    <button type="button" class="btn" id="shareBtn">Compartir mi lista</button>
+    <button type="button" class="btn" data-share="1">Compartir mi plan</button>
   </div>
-  <div class="share-out" id="shareOut" hidden><input type="text" id="shareUrl" readonly aria-label="Enlace para compartir"><button type="button" class="btn" id="shareCopy">Copiar</button></div>
   <div class="gallery" id="gallery"></div>
 
   <div class="panel">
@@ -484,7 +492,7 @@
     <li>Listados: <a href="https://www.cars.com/shopping/results/?stock_type=used&amp;zip=08872&amp;maximum_distance=50" target="_blank" rel="noopener">Cars.com, 50 millas de 08872</a>, Carfax (links de Juan), sitios de concesionarios</li>
     <li>Hidrógeno en NJ: <a href="https://afdc.energy.gov/fuels/hydrogen-locations" target="_blank" rel="noopener">Alternative Fuels Data Center</a></li>
   </ul>
-  <footer>Estimaciones con datos públicos al 18 de octubre de 2026. Los precios de carros cambian a diario y el seguro real depende de la cotización. Tus valores se guardan en este dispositivo; las líneas base y los carros añadidos también se guardan en la hoja de la familia si te conectas; usa “Compartir mi lista” para pasarlos a otro. Confirmar todo con el concesionario y la aseguradora antes de firmar.</footer>
+  <footer>Estimaciones con datos públicos al 18 de octubre de 2026. Los precios de carros cambian a diario y el seguro real depende de la cotización. Tus valores, líneas base y carros añadidos se guardan solo en este dispositivo; usa “Compartir mi lista” para pasarlos a otro. Confirmar todo con el concesionario y la aseguradora antes de firmar.</footer>
 </section>
 
 </div>
