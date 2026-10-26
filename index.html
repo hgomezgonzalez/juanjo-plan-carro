@@ -113,7 +113,7 @@
   <div class="sec-head">
     <span class="eyebrow">1 · Tu carro</span>
     <h2>Elige un carro y mira si te conviene</h2>
-    <p class="lede">El puntaje Juanjo va de 0 a 100. Suma el costo al mes, la confiabilidad, el seguro, el historial, la garantía y la distancia. Arriba de 72 es buena compra.</p>
+    <p class="lede">El puntaje Juanjo (0 a 100) mide <b>qué tan bueno es el carro</b>: confiabilidad, historial, estado por millas, garantía, precio frente a su valor, seguro y distancia. El precio no descarta un carro: lo que cuesta para ti se ve aparte, en “Tu bolsillo”, con lo que haría falta para pagarlo.</p>
   </div>
   <div class="strip" id="strip" role="group" aria-label="Elegir carro"></div>
   <div class="hero">
@@ -444,7 +444,15 @@
   <div class="sec-head">
     <span class="eyebrow">8 · Todos los carros</span>
     <h2>Los que vio Juan, las mejores opciones cerca y los que añadas</h2>
-    <p class="lede" id="carsLede">Ordenados por puntaje. El costo al mes usa la configuración actual del simulador.</p>
+    <p class="lede" id="carsLede">Ordenados por calidad del carro, no por precio. Debajo de cada uno, “Tu bolsillo” dice si te alcanza hoy y qué faltaría. El costo al mes usa la configuración actual del simulador.</p>
+  </div>
+
+  <div class="panel">
+    <h3>El mapa: qué tan bueno es cada carro vs. lo que cuesta al mes</h3>
+    <p class="note">Arriba = mejor carro. Izquierda = más barato al mes. La raya punteada es lo que te entra al mes hoy: a su izquierda te alcanza, a su derecha hay que estirar. Toca un punto para ver ese carro.</p>
+    <div class="legend-inline" id="mapLegend"></div>
+    <div class="chart-box" id="mapBox"><canvas id="cMap" role="img" aria-label="Calidad de cada carro contra su costo mensual"></canvas></div>
+    <div class="map-q" id="mapPicks"></div>
   </div>
 
   <details class="add" id="addBox">
@@ -484,6 +492,7 @@
     <div class="filters" id="filters" role="group" aria-label="Filtrar carros">
       <button type="button" data-f="all" aria-pressed="true">Todos</button>
       <button type="button" data-f="good" aria-pressed="false">Recomendados</button>
+      <button type="button" data-f="fits" aria-pressed="false">Te alcanzan hoy</button>
       <button type="button" data-f="juan" aria-pressed="false">Los que vio Juan</button>
       <button type="button" data-f="new" aria-pressed="false">Nuevas opciones</button>
       <button type="button" data-f="added" aria-pressed="false">Añadidos</button>

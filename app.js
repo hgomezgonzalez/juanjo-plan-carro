@@ -5,7 +5,6 @@
   const NJ = { tax: 0.06625, docDefault: 599, titleLien: 85, regLight: 46.5, regHeavy: 71.5, plates: 6, decal: 4, tiresYr: 150, oilYr: 300 };
   const HOME = [40.4593, -74.361]; // Sayreville
   const NOW_YEAR = 2026 + 9.5 / 12; // mediados de octubre de 2026
-  const BUDGET_MAX = 15000;
   const VERD = { good: ["good", "✓ Recomendado"], warn: ["warn", "! Con cuidado"], bad: ["bad", "✕ Descartar"] };
   const DEFAULTS = { car: "A", price: 14987, down: 3000, term: 60, apr: 7.5, ins: 350, miles: 700, gas: 4.25, other: 40, income: 800, family: 0, save: 500, goal: 5000, reserve: 1000, cutPrice: 25,
     wage: 18, hours: 28, tips: 0, tax: 12, buffer: 100, extraOn: false, season: "school" };
@@ -104,7 +103,6 @@
     if (e.theft) e.alerts.push(["warn", `${cap(c.make)} ${cap(c.model)} ${c.year} con llave puede no tener inmovilizador: exigir la actualización antirrobo y cotizar el seguro antes.`]);
     if (alertOn) e.alerts.push(["warn", mi.alert]);
     if (e.unknownModel) e.alerts.push(["warn", "Modelo sin datos propios en la tabla: se usan promedios. Pide verificación completa."]);
-    if (c.price > BUDGET_MAX) e.alerts.push(["warn", `Está ${fmt(c.price - BUDGET_MAX)} sobre el presupuesto de $15.000.`]);
     if (e.dist != null && e.dist > 40) e.alerts.push(["warn", `Queda lejos (~${e.dist} millas): suma un día de viaje y es difícil volver por garantía.`]);
     if (c.recalls) e.alerts.push(["warn", `NHTSA tiene ${c.recalls} campaña(s) de recall para este modelo y año: revisar por VIN en nhtsa.gov/recalls.`]);
     return e;
@@ -153,74 +151,108 @@
     return Math.max(0, weekly / netPerHour());
   }
 
-  // Puntaje Juanjo: cada criterio 0–100.
+  // Puntaje Juanjo = calidad del carro (0–100). No mira si te alcanza: eso va aparte en "Tu bolsillo".
+  const ageOf = (c) => Math.max(0.5, NOW_YEAR - (c.year - 0.25));
+  const perYear = (c) => (c.miles || 0) / ageOf(c);
   function scoreParts(c, m) {
     const cost = c.h2 ? 0 : clamp(100 - (m.total - 600) / 5, 0, 100);
-    const rel = c.rel;
+    const rel = c.h2 ? 0 : c.rel;
     const ins = clamp(100 - (c.insF - 1) * 500 - (c.theft ? 20 : 0), 0, 100);
-    let hist = c.accidents === "no" ? 100 : c.accidents === "yes" ? 15 : 55;
-    if (c.owners >= 3) hist -= 10;
+    let hist = c.accidents === "no" ? 100 : c.accidents === "unk" ? 55 : (c.accN >= 2 ? 15 : c.accSev === "minor" ? 55 : 42);
+    if (c.owners >= 3) hist -= 10; else if (c.owners === 2) hist -= 5;
+    if (c.use === "fleet" || c.use === "work") hist -= 15;
     if (c.title === "rebuilt") hist = 0;
+    hist = clamp(hist, 0, 100);
+    const cond = clamp(100 - (c.miles || 0) / 1500 - Math.max(0, perYear(c) - 15000) / 500, 0, 100);
     const war = c.warFrac * 100;
+    const value = c.priceFlag === "high" ? 25 : c.market ? clamp(60 + (c.market - c.price) / c.market * 800, 0, 100) : 60;
     const dist = c.dist == null ? 60 : clamp(100 - c.dist * 1.5, 0, 100);
-    return { cost, rel, ins, hist, war, dist };
+    return { cost, rel, hist, cond, war, value, ins, dist };
   }
+  const Q_WEIGHTS = { rel: .22, hist: .22, cond: .16, war: .12, value: .10, ins: .12, dist: .06 };
   function scoreOf(c, m) {
     const p = scoreParts(c, m);
-    let s = p.cost * .35 + p.rel * .20 + p.ins * .15 + p.hist * .15 + p.war * .10 + p.dist * .05;
+    let s = Object.entries(Q_WEIGHTS).reduce((a, [k, w]) => a + p[k] * w, 0);
     if (c.h2 || c.title === "rebuilt") s = Math.min(s, 15);
     return Math.round(s);
   }
-  function autoVerdict(c, score) {
-    if (c.h2 || c.title === "rebuilt") return "bad";
-    let v = score >= 72 ? "good" : score >= 55 ? "warn" : "bad";
-    if ((c.accidents !== "no" || c.price > 17500) && v === "good") v = "warn";
-    if (c.accidents === "yes" && v === "warn" && score < 65) v = "bad";
+  // Veredicto por calidad: un punto crítico descarta; el precio nunca descarta.
+  function verdictOf(c, score, cons) {
+    if (c.h2 || c.title === "rebuilt" || cons.some(x => x.lvl === "crit")) return "bad";
+    let v = score >= 75 ? "good" : score >= 55 ? "warn" : "bad";
+    if (v === "good" && c.accidents !== "no") v = "warn";
     return v;
   }
-  // Tres razones cortas, primero las más importantes.
+  // Tu bolsillo: si te alcanza y qué haría falta para llegar.
+  function pocketOf(c, m) {
+    if (c.h2) return { na: true };
+    const gap = m.total - budget();
+    const r = { gap, hours: hoursFor(m.total), state: gap <= -S.buffer ? "ok" : gap <= 0 ? "tight" : gap <= 100 ? "close" : "over" };
+    if (gap > 0) {
+      const o = otd(c, c.price);
+      let lo = S.down, hi = o.total;
+      if (monthly(c, c.price, S, hi).total > budget()) r.downNeed = null;
+      else {
+        for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (monthly(c, c.price, S, mid).total > budget()) lo = mid; else hi = mid; }
+        r.downNeed = Math.ceil(hi / 100) * 100;
+        const missing = r.downNeed + S.reserve - 3000;
+        r.months = missing <= 0 ? 0 : S.save > 0 ? Math.ceil(missing / S.save) : null;
+      }
+    }
+    return r;
+  }
+  const POCKET = { ok: ["good", "✓ Te alcanza"], tight: ["warn", "✓ Te alcanza justo"], close: ["warn", "Casi te alcanza"], over: ["bad", "Cuesta más de lo que tienes"] };
+  function pocketLine(c) {
+    const p = c._p; if (!p || p.na) return "";
+    const [cls, lab] = POCKET[p.state];
+    const txt = p.gap > 0 ? `${lab}: faltan ${fmt(p.gap)}/mes · ~${h1(p.hours)} h extra/semana` : `${lab}${p.state === "ok" ? `: sobran ${fmt(-p.gap)}/mes` : ""}`;
+    return `<div class="pocket ${cls}">${esc(txt)}</div>`;
+  }
+  // Tres razones cortas de calidad, primero las más importantes.
   function reasons(c, m) {
     const r = [];
     if (c.h2) r.push(["neg", "No hay hidrógeno en NJ para cargarlo", 100]);
     if (c.title === "rebuilt") r.push(["neg", "Título rebuilt: tuvo daño grave", 95]);
-    if (c.accidents === "yes") r.push(["neg", "Accidente reportado", 90]);
-    if (!c.h2) {
-      if (m.total <= budget()) r.push(["pos", `Cabe en tu dinero: ${fmt(m.total)} al mes`, 85]);
-      else r.push(["neg", `Cuesta ${fmt(m.total)} al mes; tienes ${fmt(budget())}`, 70]);
-    }
+    if (c.accN >= 2) r.push(["neg", `${c.accN} accidentes reportados`, 92]);
+    else if (c.accidents === "yes") r.push(["neg", c.accSev === "minor" ? "Accidente menor reportado" : "Accidente reportado", 90]);
+    if ((c.miles || 0) >= 100000) r.push(["neg", `Muchas millas: ${c.miles.toLocaleString("es-CO")}`, 80]);
     if (c.h2) {} else if (c.rel >= 90) r.push(["pos", "Muy confiable, casi no se daña", 60]);
     else if (c.rel <= 72) r.push(["mid", `Confiabilidad regular (${c.rel} de 100)`, 55]);
+    if (c.market && c.market - c.price >= 1000) r.push(["pos", `${fmt(c.market - c.price)} bajo su valor`, 62]);
     if (c.mpgE >= 45) r.push(["pos", `Gasta muy poca gasolina (${c.mpgE} MPG)`, 58]);
     else if (c.mpgE >= 33) r.push(["pos", `Buen consumo: ${c.mpgE} MPG`, 40]);
     else if (c.mpgE && c.mpgE < 29) r.push(["neg", `Gasta bastante gasolina (${c.mpgE} MPG)`, 45]);
     if (c.insF > 1.2) r.push(["neg", "Seguro muy caro para tu edad", 75]);
-    else if (c.insF > 1.04) r.push(["mid", "Seguro algo más caro (sedán mediano)", 42]);
+    else if (c.insF > 1.04) r.push(["mid", "Seguro algo más caro", 42]);
     else r.push(["pos", "De los más baratos de asegurar", 38]);
     if (c.theft) r.push(["mid", "Riesgo de robo: pide la actualización antirrobo", 65]);
     if (c.accidents === "unk") r.push(["mid", "Historial sin verificar", 50]);
-    else if (c.accidents === "no") r.push(["pos", "Sin accidentes", 35]);
-    if (c.warFrac > 0.3) r.push(["pos", "Le queda garantía de motor", 36]);
+    else if (c.accidents === "no") r.push(["pos", c.owners === 1 ? "Sin accidentes, 1 dueño" : "Sin accidentes", 52]);
+    if (c.warFrac > 0.3) r.push(["pos", "Le queda garantía de motor", 48]);
     else if (c.warFrac === 0) r.push(["mid", "Ya no tiene garantía de fábrica", 44]);
-    if (c.price > BUDGET_MAX) r.push(["mid", `${fmt(c.price - BUDGET_MAX)} sobre el presupuesto`, 52]);
     if (c.dist != null && c.dist <= 10) r.push(["pos", "Muy cerca de casa", 30]);
     else if (c.dist > 40) r.push(["mid", `Lejos: ~${c.dist} millas`, 33]);
     return r.sort((a, b) => b[2] - a[2]);
   }
 
-  // Por qué un carro está descartado o con cuidado: lo crítico primero, en palabras simples.
+  // Puntos en contra del carro (no del precio): lo crítico primero, en palabras simples.
   // Junta las razones escritas a mano (cars.json "why") con las que se calculan solas, sin repetir.
   function whyItems(c, m) {
     const out = (c.why || []).map(([lvl, k, t, d]) => ({ lvl, k, t, d }));
     const has = (k) => out.some(x => x.k === k);
     const add = (lvl, k, t, d) => { if (!has(k)) out.push({ lvl, k, t, d }); };
+    const pm = perYear(c);
     if (c.h2) add("crit", "h2", "No hay dónde echarle combustible", "Funciona con hidrógeno. En NJ no hay estaciones públicas.");
     if (c.title === "rebuilt") add("crit", "titulo", "Título rebuilt: tuvo daño grave", "Lo declararon pérdida total y lo repararon. Difícil de asegurar y casi nadie lo compra después.");
-    if (c.accidents === "yes") add("crit", "acc", "Accidente reportado", "Puede tener daños escondidos, vale menos al venderlo y el seguro puede salir más caro.");
-    if (!c.h2) {
-      const gap = m.total - budget();
-      if (gap >= 10) add(gap > 100 ? "crit" : "warn", "mes", `Con tu plan de hoy te faltan ${fmt(gap)} al mes`, `Cuesta ${fmt(m.total)} al mes con todo incluido y te entran ${fmt(budget())}.`);
-    }
-    if (c.price > BUDGET_MAX) add(c.price - BUDGET_MAX > 2500 ? "crit" : "warn", "budget", `${fmt(c.price - BUDGET_MAX)} sobre tu presupuesto`, "Más precio es más deuda, más intereses y más impuesto de venta.");
+    if (c.accN >= 2) add("crit", "acc2", `${c.accN} accidentes reportados`, "Varios choques: más riesgo de daños escondidos, vale menos al venderlo y el seguro puede subir.");
+    else if (c.accidents === "yes") add("warn", "acc", c.accSev === "minor" ? "Accidente menor reportado" : c.accSev === "moderate" ? "Daño reportado (de menor a moderado)" : "Accidente reportado",
+      "Pide el reporte completo y que un mecánico lo revise. Si fue leve y bien reparado se puede considerar, pero vale menos al venderlo.");
+    if ((c.miles || 0) >= 120000) add("crit", "millas", `Demasiadas millas: ${c.miles.toLocaleString("es-CO")}`, "Le quedan pocos años buenos y vienen reparaciones grandes (suspensión, transmisión, motor).");
+    else if (pm > 25000) add("warn", "millas", `Lo manejaron mucho: ~${Math.round(pm / 1000)}.000 millas al año`, "Lo normal son unas 12.000. Más desgaste del que dice su año.");
+    else if ((c.miles || 0) >= 90000) add("warn", "millas", `Muchas millas: ${c.miles.toLocaleString("es-CO")}`, "Pronto tocan arreglos caros de mantenimiento.");
+    if (c.use === "fleet") add("warn", "flota", "Fue carro de flota", "De empresa o alquiler: lo manejaron muchas personas distintas.");
+    if (c.owners >= 3) add("warn", "duenos", `${c.owners} dueños`, "Cambió mucho de manos: es más difícil saber cómo lo cuidaron.");
+    if (c.market && c.price > c.market + 300) add("warn", "mercado", `Precio ${fmt(c.price - c.market)} por encima de su valor`, `CarGurus estima que vale ${fmt(c.market)}. Hay margen para negociar.`);
     if (c.rel <= 72 && !c.h2) add(c.warFrac === 0 ? "crit" : "warn", "rel", `Confiabilidad regular: ${c.rel} de 100`,
       (c.cvt ? "La caja automática CVT de Nissan falla más que la de Toyota o Honda y cambiarla cuesta miles de dólares. " : "")
       + `Para comparar: un Corolla tiene 95. Menos puntos = más visitas al taller y gastos que no esperas.`
@@ -228,7 +260,7 @@
     if (c.warFrac === 0 && !c.h2 && !(c.cvt && has("rel"))) add("warn", "war", "Ya no tiene garantía de fábrica", "Si se daña el motor o la caja, el arreglo sale de tu bolsillo.");
     if (c.theft) add("warn", "robo", "Fácil de robar si no tiene la actualización", "Algunos con llave no tienen inmovilizador. Pide el antirrobo por escrito y cotiza el seguro antes.");
     if (c.accidents === "unk") add("warn", "hist", "Historial sin verificar", "No sabemos si ha chocado. Pide el Carfax completo antes de ir.");
-    if (c.insF > 1.04 && !has("seguro")) add("warn", "seguro", "Seguro más caro", "Para un conductor de 17 años este tipo de carro cuesta más de asegurar.");
+    if (c.insF > 1.04 && !has("seguro") && !has("modelo")) add("warn", "seguro", "Seguro más caro", "Para un conductor de 17 años este tipo de carro cuesta más de asegurar.");
     if (c.modelAlert && !c.cvt) add("warn", "modelo", "Falla conocida del modelo", c.modelAlert);
     if (c.dist > 40) add("warn", "lejos", `Queda lejos: ~${c.dist} millas`, "Un día entero para ir a verlo y más difícil volver si algo falla.");
     if (c.unknownModel) add("warn", "datos", "Sin datos propios del modelo", "Se usan promedios. Pide verificación completa.");
@@ -242,59 +274,77 @@
     const add = (lvl, k, t, d) => { if (!has(k)) out.push({ lvl, k, t, d }); };
     if (c.h2) return out;
     const ok = ALL.filter(x => !x.h2 && x.verdict !== "bad");
-    if (c.verdict !== "bad" && ok.length && Math.min(...ok.map(x => x._m.total)) >= m.total - 0.5) add("top", "barato", "El más barato al mes de la lista", `Con todo incluido sale en ${fmt(m.total)}: ninguno de los que valen la pena cuesta menos.`);
-    if (ok.length && Math.max(...ok.map(x => x.score)) <= c.score) add("top", "puntaje", "El puntaje más alto de todos", `${c.score} de 100 sumando costo, confiabilidad, seguro, historial y garantía.`);
-    const gap = budget() - m.total;
-    if (gap >= S.buffer) add("top", "mes", `Te alcanza: te sobran ${fmt(gap)} al mes`, `Cuesta ${fmt(m.total)} al mes con todo incluido y te entran ${fmt(budget())}.`);
-    else if (gap >= 0) add("pos", "mes", `Te alcanza justo: sobran ${fmt(gap)} al mes`, "Alcanza, pero queda poco margen para imprevistos.");
+    if (c.verdict !== "bad" && ok.length && Math.max(...ok.map(x => x.score)) <= c.score) add("top", "puntaje", "La mejor calidad de toda la lista", `${c.score} de 100 sumando confiabilidad, historial, estado, garantía, precio justo y seguro.`);
+    if (c.market && c.market - c.price >= 300) add(c.market - c.price >= 1000 ? "top" : "pos", "mercado", `${fmt(c.market - c.price)} por debajo de su valor`, `CarGurus estima que vale ${fmt(c.market)}: es buena compra por el precio.`);
     if (c.rel >= 90) add("top", "rel", `Muy confiable: ${c.rel} de 100`, "Es de los que casi no se dañan: menos visitas al taller y menos gastos sorpresa.");
     else if (c.rel >= 80) add("pos", "rel", `Confiabilidad buena: ${c.rel} de 100`, "Pocos problemas conocidos si se le hace el mantenimiento.");
     if (c.accidents === "no") add(c.owners === 1 ? "top" : "pos", "hist", c.owners === 1 ? "Sin accidentes y un solo dueño" : "Sin accidentes reportados", c.owners === 1 ? "Lo cuidó una sola persona: menos riesgo de problemas escondidos." : "Título limpio según el historial.");
     if (c.warFrac > 0.3) add("top", "war", "Le queda garantía de motor", `${c.warText}: si se daña el motor o la caja, lo paga la fábrica.`);
     else if (c.warFrac > 0) add("pos", "war", "Le queda algo de garantía", c.warText + ".");
     if (c.miles && c.miles < 35000) add("top", "pocas", `Pocas millas: ${c.miles.toLocaleString("es-CO")}`, "Menos desgaste: le queda mucha vida por delante.");
+    else if (c.miles && perYear(c) < 9000) add("pos", "pocas", `Poco uso: ~${Math.round(perYear(c) / 1000)}.000 millas al año`, "Lo manejaban menos de lo normal: menos desgaste.");
     if (c.mpgE >= 45) add("top", "gas", `Gasta muy poca gasolina: ${c.mpgE} MPG`, `Unos ${fmt(m.gas)} al mes en gasolina.`);
     else if (c.mpgE >= 33) add("pos", "gas", `Buen consumo: ${c.mpgE} MPG`, `Unos ${fmt(m.gas)} al mes en gasolina.`);
     if (c.insF <= 1 && !c.theft) add("pos", "seguro", "De los más baratos de asegurar", "Compacto y común: el seguro para un chico de 17 años sale menos caro.");
     if (c.dep <= 0.07) add("pos", "valor", "Pierde poco valor", "Si lo vendes en unos años, recuperas más dinero que con otras marcas.");
     if (c.dist != null && c.dist <= 10) add("pos", "cerca", `Muy cerca de casa: ~${c.dist} millas`, "Fácil ir a verlo, probarlo y volver si algo sale mal.");
-    if (c.price <= BUDGET_MAX && !has("mercado")) add("pos", "budget", "Dentro de tu presupuesto", `${fmt(c.price)}, por debajo de $15.000.`);
     const rank = { top: 0, pos: 1 };
     return out.sort((a, b) => rank[a.lvl] - rank[b.lvl]);
   }
-  // El mejor recomendado para comparar (distinto del carro dado).
+  // El de mejor calidad para comparar (distinto del carro dado).
   const bestOther = (c) => ALL.filter(x => x.verdict === "good" && x.id !== c.id && !x.h2).sort((a, b) => b.score - a.score)[0];
   const TAG = { top: "Fuerte", pos: "A favor", crit: "Crítico", warn: "Ojo" };
   const argLi = (x) => `<li class="${x.lvl}"><span class="tag">${TAG[x.lvl]}</span><div><b>${esc(x.t)}</b><span>${esc(x.d)}</span></div></li>`;
+  function pocketHtml(c, m) {
+    const p = c._p; if (!p || p.na) return "";
+    const [cls, lab] = POCKET[p.state];
+    let h = `<div class="pocket-box ${cls}"><h5>💵 Tu bolsillo: ${lab.replace(/^✓ /, "")}</h5><p>Cuesta <b>${fmt(m.total)} al mes</b> con todo incluido y te entran <b>${fmt(budget())}</b>.`;
+    if (p.gap <= 0) h += ` Te sobran ${fmt(-p.gap)} al mes.${p.state === "tight" ? " Poco margen para imprevistos." : ""}</p>`;
+    else {
+      h += ` Faltan <b>${fmt(p.gap)} al mes</b>. Formas de llegar:</p><ul>`;
+      h += `<li>Trabajar <b>~${h1(p.hours)} h extra por semana</b> a ${fmt(S.wage)} (con ${fmt(S.buffer)} de margen).</li>`;
+      if (p.downNeed != null) h += `<li>Dar <b>${fmt(p.downNeed)} de inicial</b>${p.months ? ` (ahorrando ${fmt(S.save)} al mes, en ~${p.months} mes${p.months > 1 ? "es" : ""})` : p.months === 0 ? " (ya lo tienes)" : ""}.</li>`;
+      else h += `<li>Ni pagándolo de contado alcanza: el seguro y la gasolina solos pasan lo que te entra.</li>`;
+      h += `<li>Que la familia ponga <b>${fmt(p.gap)} al mes</b>, o negociar el precio.</li></ul>`;
+    }
+    return h + "</div>";
+  }
   function whyHtml(c, m) {
-    const cons = whyItems(c, m), pros = proItems(c, m);
+    const cons = c._cons || whyItems(c, m), pros = proItems(c, m);
     const best = bestOther(c);
     const nTop = pros.filter(x => x.lvl === "top").length, nCrit = cons.filter(x => x.lvl === "crit").length;
     const title = c.verdict === "good" ? "¿Por qué sí comprarlo?" : c.verdict === "warn" ? "¿Comprarlo o no?" : "¿Por qué está descartado?";
     const colPro = `<div class="arg pro"><h5>✓ Para comprarlo <small>${pros.length}</small></h5>${pros.length ? `<ol class="why-list">${pros.map(argLi).join("")}</ol>` : '<p class="small">Nada que pese de verdad.</p>'}</div>`;
     const colCon = `<div class="arg con"><h5>✕ Para no comprarlo <small>${cons.length}</small></h5>${cons.length ? `<ol class="why-list">${cons.map(argLi).join("")}</ol>` : '<p class="small">No encontramos nada importante en contra.</p>'}</div>`;
     let h = `<div class="why ${c.verdict}"><h4>${title}${nTop ? ` <span class="why-n pro">${nTop} fuerte${nTop > 1 ? "s" : ""}</span>` : ""}${nCrit ? ` <span class="why-n">${nCrit} crítico${nCrit > 1 ? "s" : ""}</span>` : ""}</h4>`;
+    h += `<p class="small">Se juzga el carro, no el precio: lo que cuesta para ti está abajo, en “Tu bolsillo”.</p>`;
     h += `<div class="args">${c.verdict === "bad" ? colCon + colPro : colPro + colCon}</div>`;
+    h += pocketHtml(c, m);
     if (best && !c.h2) {
       const dm = m.total - best._m.total, ds = best.score - c.score;
-      h += `<p class="why-cmp">Frente al <b>${esc(best.name)}</b> (el mejor recomendado): ${dm >= 1 ? `cuesta <b>${fmt(dm)} más al mes</b>` : dm <= -1 ? `cuesta <b>${fmt(-dm)} menos al mes</b>` : "cuesta casi lo mismo al mes"}${ds > 0 ? ` y tiene <b>${ds} punto${ds > 1 ? "s" : ""} menos</b>` : ds < 0 ? ` y tiene ${-ds} punto${ds < -1 ? "s" : ""} más` : ""}. <button type="button" class="linkbtn" data-pick="${esc(best.id)}">Ver ese</button></p>`;
-    } else if (c.verdict === "good" && !c.h2) h += `<p class="why-cmp"><b>Es el mejor recomendado de la lista.</b></p>`;
+      h += `<p class="why-cmp">Frente al <b>${esc(best.name)}</b> (el recomendado de mejor calidad): ${dm >= 1 ? `cuesta <b>${fmt(dm)} más al mes</b>` : dm <= -1 ? `cuesta <b>${fmt(-dm)} menos al mes</b>` : "cuesta casi lo mismo al mes"}${ds > 0 ? ` y tiene <b>${ds} punto${ds > 1 ? "s" : ""} menos</b> de calidad` : ds < 0 ? ` y tiene ${-ds} punto${ds < -1 ? "s" : ""} más de calidad` : ""}. <button type="button" class="linkbtn" data-pick="${esc(best.id)}">Ver ese</button></p>`;
+    } else if (c.verdict === "good" && !c.h2) h += `<p class="why-cmp"><b>Es el recomendado de mejor calidad de la lista.</b></p>`;
     if (c.decide) h += `<p class="why-dec"><b>Decisión:</b> ${esc(c.decide)}</p>`;
     return h + "</div>";
   }
 
   // Dos argumentos para la tarjeta: recomendados a favor, descartados en contra, con cuidado uno y uno.
   function cardArgs(c) {
-    const p = proItems(c, c._m), k = whyItems(c, c._m);
+    const p = proItems(c, c._m), k = c._cons || [];
     return (c.verdict === "good" ? [p[0], p[1]] : c.verdict === "bad" ? [k[0], k[1]] : [p[0], k[0]]).filter(Boolean);
   }
-  // Recalcula puntajes y veredictos de todos los carros con la configuración actual.
+  // Recalcula calidad, veredicto y bolsillo de todos los carros con la configuración actual.
   function rescore() {
     ALL.forEach(c => {
       c._m = monthly(c, c.price, S);
       c.score = scoreOf(c, c._m);
-      c.verdict = c.src === "added" ? autoVerdict(c, c.score) : c.v;
+      c._cons = whyItems(c, c._m);
+      c.verdict = verdictOf(c, c.score, c._cons);
+      if (c.verdict === "bad" && !c._cons.some(x => x.lvl === "crit")) c._cons.unshift({ lvl: "crit", k: "suma", t: "Demasiados puntos en contra a la vez", d: `Ninguno solo lo descarta, pero juntos le dejan una calidad de ${c.score} de 100.` });
+      c._p = pocketOf(c, c._m);
     });
+    const top = ALL.filter(c => c.verdict === "good").sort((a, b) => b.score - a.score).slice(0, 3).map(c => c.id);
+    ALL.forEach(c => { c.top = top.includes(c.id); });
   }
   const carById = (id) => ALL.find(c => c.id === id);
   function rebuildAll() {
@@ -332,7 +382,7 @@
   }
   function draw(key) { if (seen[key] && drawers[key]) drawers[key](); }
   function drawSeen() { Object.keys(drawers).forEach(draw); }
-  const CANVAS = { hours: "cHours", donut: "cDonut", equity: "cEquity", when: "cWhen", interest: "cInterest", radar: "cRadar", cmpbar: "cCmpBar", tco: "cTco", lender: "cLender" };
+  const CANVAS = { hours: "cHours", donut: "cDonut", equity: "cEquity", when: "cWhen", interest: "cInterest", radar: "cRadar", cmpbar: "cCmpBar", tco: "cTco", lender: "cLender", map: "cMap" };
   function watchCharts() {
     if (!("IntersectionObserver" in window)) { Object.keys(CANVAS).forEach(k => { seen[k] = true; }); drawSeen(); return; }
     const io = new IntersectionObserver((entries) => {
@@ -376,7 +426,7 @@
   let heavyT = 0;
   function scheduleHeavy() {
     clearTimeout(heavyT);
-    heavyT = setTimeout(() => { renderStrip(); renderCompareCards(); renderGallery(); draw("radar"); draw("cmpbar"); draw("tco"); }, 180);
+    heavyT = setTimeout(() => { renderStrip(); renderCompareCards(); renderGallery(); draw("radar"); draw("cmpbar"); draw("tco"); draw("map"); renderPicks(); }, 180);
   }
 
   function renderOutputs(car, m) {
@@ -430,7 +480,7 @@
   function renderStrip() {
     const rank = (c) => (c.verdict === "bad" ? 1000 : 0) - c.score;
     const list = [...ALL].sort((a, b) => rank(a) - rank(b));
-    const html = list.map(c => `<button type="button" class="thumb${c.verdict === "bad" ? " dim" : ""}" data-pick="${esc(c.id)}" aria-pressed="${c.id === S.car}">${photo(c)}<span>${esc(c.name)}</span><small>${c.verdict === "bad" ? "✕ Descartado · " : ""}${fmt(c.price)} · ${c.score} pts${c.src === "juan" ? " · lo vio Juan" : ""}</small></button>`).join("");
+    const html = list.map(c => `<button type="button" class="thumb${c.verdict === "bad" ? " dim" : ""}" data-pick="${esc(c.id)}" aria-pressed="${c.id === S.car}">${photo(c)}<span>${esc(c.name)}</span><small>${c.verdict === "bad" ? "✕ Descartado · " : c.top ? "★ " : ""}${fmt(c.price)} · ${c.score} pts${c.src === "juan" ? " · lo vio Juan" : ""}</small></button>`).join("");
     const el = $("strip");
     if (el._html !== html) { el.innerHTML = html; el._html = html; }
   }
@@ -445,12 +495,12 @@
     const [vc, vl] = VERD[car.verdict];
     const src = car.src === "juan" ? "Lo vio Juan" : car.src === "added" ? "Añadido · análisis automático" : "Nueva opción";
     const url = safeUrl(car.url);
-    const key = car.id + "|" + Math.round(m.total) + "|" + car.score + "|" + S.price + "|" + Math.round(budget());
+    const key = [car.id, Math.round(m.total), car.score, car.verdict, S.price, Math.round(budget()), S.down, S.save, S.reserve, S.wage, S.buffer, S.term].join("|");
     const el = $("heroCard");
     if (el._key === key) return;
     el._key = key;
     el.innerHTML = `${photo(car, true)}
-      <div class="hero-top"><div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span class="pill ${vc}">${vl}</span><span class="pill src">${src}</span></div><h3>${esc(car.name)}</h3><p class="hero-meta">${esc(car.dealer || "")}${car.city ? " · " + esc(car.city) : ""}${car.dist != null ? ` · ~${car.dist} mi de casa` : ""}</p></div>${ring(car.score, car.verdict)}</div>
+      <div class="hero-top"><div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px"><span class="pill ${vc}">${vl}</span>${car.top ? '<span class="pill star">★ Top calidad</span>' : ""}<span class="pill src">${src}</span></div><h3>${esc(car.name)}</h3><p class="hero-meta">${esc(car.dealer || "")}${car.city ? " · " + esc(car.city) : ""}${car.dist != null ? ` · ~${car.dist} mi de casa` : ""}</p></div>${ring(car.score, car.verdict)}</div>
       <ul class="reasons">${rs.map(r => `<li class="${r[0]}"><span class="ic" aria-hidden="true">${r[0] === "pos" ? "✓" : r[0] === "neg" ? "✕" : "!"}</span><span>${esc(r[1])}</span></li>`).join("")}</ul>
       <div class="specs"><div class="spec"><b>${fmt(S.price)}</b><span>precio</span></div><div class="spec"><b>${(car.miles || 0).toLocaleString("es-CO")}</b><span>millas</span></div><div class="spec"><b>${car.mpgE || "H₂"}</b><span>MPG</span></div><div class="spec"><b>${fmt(m.total)}</b><span>${car.h2 ? "al mes, sin combustible" : "al mes, todo incluido"}</span></div></div>
       <p class="note">${esc(car.warText)}. ${esc(car.hist || "")}</p>
@@ -874,7 +924,7 @@
         <div class="car-line">${fmt(c._m.total)} al mes · ${fmt(c.price)} · ${(c.miles || 0).toLocaleString("es-CO")} mi</div>`;
     });
   }
-  const AXES = [["Costo al mes", "cost"], ["Confiabilidad", "rel"], ["Seguro", "ins"], ["Historial", "hist"], ["Garantía", "war"]];
+  const AXES = [["Confiabilidad", "rel"], ["Historial", "hist"], ["Estado (millas)", "cond"], ["Garantía", "war"], ["Precio justo", "value"], ["Seguro", "ins"]];
   drawers.radar = () => {
     const a = carById(cmpA), b = carById(cmpB);
     const pa = scoreParts(a, a._m), pb = scoreParts(b, b._m);
@@ -913,20 +963,21 @@
 
   // ---------- Galería ----------
   function renderGallery() {
-    const list = ALL.filter(c => filter === "all" || (filter === "good" ? c.verdict === "good" : c.src === filter)).sort((a, b) => b.score - a.score);
+    const list = ALL.filter(c => filter === "all" || (filter === "good" ? c.verdict === "good" : filter === "fits" ? c._p && !c._p.na && c._p.gap <= 0 : c.src === filter)).sort((a, b) => b.score - a.score);
     const html = list.map(c => {
       const [vc, vl] = VERD[c.verdict];
       const rs = reasons(c, c._m).slice(0, 3);
       const url = safeUrl(c.url);
       const src = c.src === "juan" ? "Lo vio Juan" : c.src === "added" ? "Añadido" : "Nueva opción";
       return `<article class="car${c.id === S.car ? " sel" : ""}" id="card-${esc(c.id)}">
-        <div style="position:relative">${photo(c)}<div class="badges"><span class="pill ${vc}">${vl}</span><span class="score ${c.verdict}" title="Puntaje Juanjo">${c.score}</span></div></div>
+        <div style="position:relative">${photo(c)}<div class="badges"><span class="pill ${vc}">${vl}</span>${c.top ? '<span class="pill star">★ Top calidad</span>' : ""}<span class="score ${c.verdict}" title="Puntaje Juanjo: calidad del carro">${c.score}</span></div></div>
         <div class="car-body">
           <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="pill src">${src}</span>${c.src === "added" ? '<span class="pill src">Historial sin verificar</span>' : ""}</div>
           <h3>${esc(c.name)}</h3>
           <div class="car-line">${fmt(c.price)}${c.docInc ? " con doc fee" : " + doc fee"} · ${(c.miles || 0).toLocaleString("es-CO")} mi · ${c.mpgE ? c.mpgE + " MPG" : "H₂"}</div>
           <div class="car-line">${esc(c.dealer || "")}${c.city ? " · " + esc(c.city) : ""}${c.dist != null ? ` · ~${c.dist} mi` : ""}</div>
           <div class="car-cost"><b>${c.h2 ? "—" : fmt(c._m.total)}</b><span>${c.h2 ? "no se puede usar en NJ" : "al mes, todo incluido"}</span></div>
+          ${pocketLine(c)}
           ${cardArgs(c).map(w => `<div class="why-line ${w.lvl}"><b>${TAG[w.lvl]}:</b> ${esc(w.t)}</div>`).join("")}
           <div class="chips">${rs.map(r => `<span class="chip ${r[0] === "pos" ? "pos" : r[0] === "neg" ? "neg" : ""}">${esc(r[1])}</span>`).join("")}</div>
           <div class="car-actions">
@@ -942,6 +993,53 @@
   }
 
   const TCO = [["Pérdida de valor + impuestos y trámites", "--s1"], ["Intereses", "--s2"], ["Seguro", "--s3"], ["Gasolina", "--s4"], ["Mantenimiento", "--s5"]];
+  // Los tres que hay que mirar: mejor calidad, mejor que alcanza hoy y el mejor de los que vio Juan.
+  function picks() {
+    const live = ALL.filter(c => !c.h2 && c.verdict !== "bad").sort((a, b) => (a.verdict === "good" ? 0 : 1) - (b.verdict === "good" ? 0 : 1) || b.score - a.score);
+    const bestQ = live[0];
+    const fits = live.filter(c => c._p.gap <= 0);
+    const bestFit = fits[0] || [...live].sort((a, b) => a._p.gap - b._p.gap)[0];
+    const juan = live.filter(c => c.src === "juan")[0];
+    return { bestQ, bestFit, fitsNow: !!fits.length, juan };
+  }
+  function renderPicks() {
+    const { bestQ, bestFit, fitsNow, juan } = picks();
+    const card = (lab, c, extra) => c ? `<div><b>${lab}</b><br><button type="button" class="linkbtn" data-pick="${esc(c.id)}">${esc(c.name)}</button><br>Calidad ${c.score} · ${fmt(c._m.total)}/mes${extra ? "<br>" + extra : ""}</div>` : "";
+    const need = (c) => c._p.gap > 0 ? `Faltan ${fmt(c._p.gap)}/mes (~${h1(c._p.hours)} h extra/semana)` : "Te alcanza hoy";
+    $("mapPicks").innerHTML = card("★ El mejor carro", bestQ, need(bestQ))
+      + (bestFit && bestFit !== bestQ ? card(fitsNow ? "✓ El mejor que te alcanza hoy" : "El más cerca de alcanzarte", bestFit, need(bestFit)) : "")
+      + (juan && juan !== bestQ && juan !== bestFit ? card("De los que vio Juan, el mejor", juan, need(juan)) : "");
+  }
+  const MAPV = [["good", "Recomendado", "circle"], ["warn", "Con cuidado", "triangle"], ["bad", "Descartar", "crossRot"]];
+  drawers.map = () => {
+    const pts = ALL.filter(c => !c.h2);
+    const col = { good: css("--good"), warn: css("--warn"), bad: css("--bad") };
+    const sel = S.car, line = css("--line"), muted = css("--muted");
+    const o = baseOpts();
+    o.interaction = { mode: "nearest", intersect: true };
+    o.scales = {
+      x: { type: "linear", min: Math.floor((Math.min(budget(), ...pts.map(c => c._m.total)) - 60) / 50) * 50, max: Math.ceil((Math.max(budget(), ...pts.map(c => c._m.total)) + 40) / 50) * 50, title: { display: true, text: "Cuesta al mes (todo incluido)", color: muted }, grid: { color: line }, border: { display: false }, ticks: { color: muted, callback: (v) => fmt(v) } },
+      y: { min: 0, max: 100, title: { display: true, text: "Calidad del carro (puntaje)", color: muted }, grid: { color: line }, border: { display: false }, ticks: { color: muted, stepSize: 20 } }
+    };
+    o.plugins.tooltip = { ...o.plugins.tooltip, callbacks: { title: (it) => it[0].raw.c.name, label: (it) => { const c = it.raw.c; return [` Calidad ${c.score} · ${fmt(c._m.total)} al mes`, ` ${c._p.gap > 0 ? `Faltan ${fmt(c._p.gap)}/mes` : "Te alcanza"} · ${VERD[c.verdict][1]}`]; } } };
+    o.onClick = (e, els) => { if (els.length) { const c = els[0].element.$context.raw.c; pickCar(c.id); $("tu-carro").scrollIntoView({ behavior: "smooth" }); } };
+    o.onHover = (e, els) => { e.native.target.style.cursor = els.length ? "pointer" : "default"; };
+    const budgetLine = { id: "budgetLine", afterDatasetsDraw(ch) {
+      const x = ch.scales.x.getPixelForValue(budget()), { top, bottom, left, right } = ch.chartArea, ctx = ch.ctx;
+      if (x < left || x > right) return;
+      ctx.save(); ctx.strokeStyle = css("--ink2"); ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle = css("--ink2"); ctx.font = `600 12px ${css("--f-body")}`;
+      ctx.textAlign = "right"; ctx.fillText("← te alcanza", x - 6, top + 14); ctx.textAlign = "left"; ctx.fillText("hay que estirar →", x + 6, top + 14);
+      ctx.restore();
+    } };
+    upsert("map", "cMap", { type: "scatter", plugins: [budgetLine], data: { datasets: MAPV.map(([v, lab, shape]) => ({
+      label: lab, data: pts.filter(c => c.verdict === v).map(c => ({ x: Math.round(c._m.total), y: c.score, c })),
+      pointStyle: shape, backgroundColor: col[v], borderColor: pts.filter(c => c.verdict === v).map(c => c.id === sel ? css("--ink") : v === "bad" ? col[v] : css("--surface")),
+      borderWidth: pts.filter(c => c.verdict === v).map(c => c.id === sel ? 3 : v === "bad" ? 3 : 2),
+      pointRadius: pts.filter(c => c.verdict === v).map(c => c.id === sel ? 11 : c.top ? 9 : 7), pointHoverRadius: 12 })) }, options: o });
+    $("mapLegend").innerHTML = MAPV.map(([v, lab]) => `<span><i class="sw" style="background:var(--${v});${v === "warn" ? "clip-path:polygon(50% 0,100% 100%,0 100%)" : v === "bad" ? "clip-path:polygon(20% 0,50% 30%,80% 0,100% 20%,70% 50%,100% 80%,80% 100%,50% 70%,20% 100%,0 80%,30% 50%,0 20%)" : "border-radius:50%"}"></i>${lab}</span>`).join("") + '<span>Punto grande con borde: el que tienes elegido</span>';
+  };
+
   drawers.tco = () => {
     const list = ALL.filter(c => c.verdict !== "bad").map(c => {
       const m = c._m, n = 36;
@@ -971,19 +1069,24 @@
   };
 
   function renderReco() {
-    const a = carById("A");
-    const bestAdded = ALL.filter(c => c.src === "added" && c.score > (a ? a.score : 0))[0];
-    $("recoText").innerHTML = `<b>Carro recomendado: 2023 Toyota Corolla LE por $14.987</b> en Trophy Auto Lounge, South Amboy (a 3 millas de casa). Es el más barato de mantener de la lista: el seguro de un Corolla es de los más bajos para adolescentes, hace unas 35 millas por galón, tiene el costo de reparación más bajo y es el que menos valor pierde. Sin accidentes, un dueño y $1.546 por debajo del mercado. Segunda opción: el 2022 Corolla LE del mismo lote ($14.297). De los carros que vio Juan, el más sensato es el <b>2024 Nissan Sentra SV certificado</b> ($15.689 en Hackensack), por la garantía de motor hasta 100k millas.`
-      + (bestAdded ? `<br><br><b>Ojo:</b> el carro que añadiste, ${esc(bestAdded.name)}, saca ${bestAdded.score} puntos, más que el Corolla. Pide la verificación completa antes de decidir.` : "")
-      + `<br><br><b>Sobre el dinero:</b> ${moneyAdvice(a)}`;
+    const { bestQ, bestFit, fitsNow, juan } = picks();
+    if (!bestQ) return;
+    const why = (c) => proItems(c, c._m).slice(0, 3).map(x => x.t.toLowerCase()).join(", ");
+    const need = (c) => c._p.gap <= 0 ? `cuesta ${fmt(c._m.total)} al mes y <b>te alcanza hoy</b>` : `cuesta ${fmt(c._m.total)} al mes: faltan ${fmt(c._p.gap)}, que se cubren con ~${h1(c._p.hours)} h extra por semana${c._p.downNeed != null ? ` o con ${fmt(c._p.downNeed)} de inicial` : ""}`;
+    let h = `<b>El mejor carro de la lista: ${esc(bestQ.name)}</b> por ${fmt(bestQ.price)} en ${esc(bestQ.dealer || "")}${bestQ.city ? ", " + esc(bestQ.city) : ""} (calidad ${bestQ.score}/100): ${esc(why(bestQ))}. Para ti ${need(bestQ)}.`;
+    if (bestFit && bestFit !== bestQ) h += `<br><br><b>${fitsNow ? "El mejor que te alcanza hoy" : "El que más cerca está de alcanzarte"}: ${esc(bestFit.name)}</b> por ${fmt(bestFit.price)} (calidad ${bestFit.score}/100): ${esc(why(bestFit))}. ${need(bestFit).replace(/^./, (x) => x.toUpperCase())}.`;
+    if (juan && juan !== bestQ && juan !== bestFit) h += `<br><br><b>De los que vio Juan, el mejor:</b> ${esc(juan.name)} (calidad ${juan.score}/100).`;
+    h += `<br><br><b>Cómo decidir:</b> primero que el carro sea bueno (sin puntos críticos), después ver cómo pagarlo. Un carro malo y barato sale caro en reparaciones; uno bueno que se pasa del presupuesto se puede alcanzar con más inicial, unas horas de trabajo o ayuda de la familia.`;
+    h += `<br><br><b>Sobre el dinero:</b> ${moneyAdvice(bestFit || bestQ)}`;
+    $("recoText").innerHTML = h;
   }
   function moneyAdvice(a) {
     const total = a._m.total, gap = total - budget(), share = Math.round(total / Math.max(budget(), 1) * 100);
     const extraH = hoursFor(total);
     const hTxt = `${extraH.toFixed(1).replace(".", ",")} horas por semana a ${fmt(S.wage)}`;
-    if (gap > 0) return `con la configuración actual el Corolla cuesta ${fmt(total)} al mes en total y Juan tiene ${fmt(budget())}: faltan ${fmt(gap)}. Está muy cerca, pero se iría prácticamente todo su ingreso en el carro, sin margen para un deducible ni para ahorrar. Para cerrarlo con un margen de ${fmt(S.buffer)} necesitaría unas ${hTxt} de trabajo extra (sección 2), una inicial más grande o un carro más barato. Lo prudente es ahorrar unos meses más (sección 4) y firmar cuando la cuenta deje margen.`;
-    if (-gap < S.buffer) return `con la configuración actual el Corolla cuesta ${fmt(total)} al mes y Juan tiene ${fmt(budget())}: alcanza, pero solo sobran ${fmt(-gap)}. El carro se llevaría el ${share}% de su ingreso. Una semana floja o una reparación lo dejaría sin pagar. Conviene sumar unas horas de trabajo (sección 2) o subir la inicial antes de firmar.`;
-    return `con la configuración actual el Corolla cuesta ${fmt(total)} al mes y Juan tiene ${fmt(budget())}: le sobran ${fmt(-gap)} al mes (el carro se lleva el ${share}% de su ingreso). El plan funciona. Mantén el colchón de ${fmt(S.reserve)} y no firmes hasta tener el ingreso estable por 2 o 3 meses.`;
+    if (gap > 0) return `con la configuración actual el ${a.name} cuesta ${fmt(total)} al mes en total y Juan tiene ${fmt(budget())}: faltan ${fmt(gap)}. Está muy cerca, pero se iría prácticamente todo su ingreso en el carro, sin margen para un deducible ni para ahorrar. Para cerrarlo con un margen de ${fmt(S.buffer)} necesitaría unas ${hTxt} de trabajo extra (sección 2), una inicial más grande o un carro más barato. Lo prudente es ahorrar unos meses más (sección 4) y firmar cuando la cuenta deje margen.`;
+    if (-gap < S.buffer) return `con la configuración actual el ${a.name} cuesta ${fmt(total)} al mes y Juan tiene ${fmt(budget())}: alcanza, pero solo sobran ${fmt(-gap)}. El carro se llevaría el ${share}% de su ingreso. Una semana floja o una reparación lo dejaría sin pagar. Conviene sumar unas horas de trabajo (sección 2) o subir la inicial antes de firmar.`;
+    return `con la configuración actual el ${a.name} cuesta ${fmt(total)} al mes y Juan tiene ${fmt(budget())}: le sobran ${fmt(-gap)} al mes (el carro se lleva el ${share}% de su ingreso). El plan funciona. Mantén el colchón de ${fmt(S.reserve)} y no firmes hasta tener el ingreso estable por 2 o 3 meses.`;
   }
 
   // ---------- Añadir carro por link ----------
@@ -1405,6 +1508,7 @@
     $("strip").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) pickCar(b.dataset.pick); });
     $("lenders").addEventListener("click", (e) => { const b = e.target.closest("[data-apr]"); if (b) { S.apr = +b.dataset.apr; syncInputs(); schedule(); } });
     $("loanBars").addEventListener("click", (e) => { const b = e.target.closest("[data-term]"); if (b) { S.term = +b.dataset.term; schedule(); } });
+    $("mapPicks").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) { pickCar(b.dataset.pick); $("tu-carro").scrollIntoView({ behavior: "smooth" }); } });
     $("heroCard").addEventListener("click", (e) => { const b = e.target.closest("[data-pick]"); if (b) { pickCar(b.dataset.pick); $("tu-carro").scrollIntoView({ behavior: "smooth" }); } });
     bindBases();
     document.addEventListener("click", (e) => { const q = e.target.closest('a[href^="#g-"]'); if (q) $("glosario").open = true; });

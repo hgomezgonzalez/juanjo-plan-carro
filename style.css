@@ -466,3 +466,17 @@ section { scroll-margin-top: calc(var(--gb-h, 80px) + 16px); }
 .debt td:first-child .small { display: block; color: var(--accent); font-weight: 700; opacity: 1; }
 .tips { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; }
 @media (max-width: 560px) { .lbar { grid-template-columns: 58px 1fr; } .lbar .lval { grid-column: 1 / -1; text-align: left; display: flex; gap: 8px; } }
+
+/* Calidad vs bolsillo */
+.pill.star { background: var(--s1); color: #fff; }
+.pocket { font-size: 13px; font-weight: 600; padding: 6px 8px; border-radius: 6px; border: 1px dashed var(--line); }
+.pocket.good { color: var(--good-ink); border-color: var(--good); }
+.pocket.warn { color: var(--warn-ink); border-color: var(--warn); }
+.pocket.bad { color: var(--ink2); border-color: var(--muted); }
+.pocket-box { border: 1px dashed var(--muted); border-radius: 10px; padding: 12px 14px; display: grid; gap: 6px; font-size: 14px; }
+.pocket-box.good { border-color: var(--good); } .pocket-box.warn { border-color: var(--warn); }
+.pocket-box h5 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; }
+.pocket-box p, .pocket-box ul { margin: 0; } .pocket-box ul { padding-left: 18px; display: grid; gap: 3px; }
+#mapBox { height: 420px; }
+.map-q { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; font-size: 13px; }
+.map-q div { padding: 8px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--line); }
