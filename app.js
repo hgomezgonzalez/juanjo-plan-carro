@@ -1571,7 +1571,7 @@
   // ---------- Arranque ----------
   async function start() {
     try {
-      const [cj, mj] = await Promise.all([fetch("data/cars.json").then(r => r.json()), fetch("data/models.json").then(r => r.json())]);
+      const [cj, mj] = await Promise.all([fetch("data/cars.json", { cache: "no-cache" }).then(r => r.json()), fetch("data/models.json", { cache: "no-cache" }).then(r => r.json())]);
       MODELS = mj; CURATED = cj.cars;
     } catch (err) {
       $("verdictTitle").textContent = "No se pudieron cargar los datos";
