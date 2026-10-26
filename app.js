@@ -84,7 +84,9 @@
     const e = { ...c };
     e.h2 = !!mi.h2;
     e.mpgE = e.h2 ? null : (c.mpg || mi.mpg);
-    e.repair = mi.repair; e.dep = mi.dep; e.insF = mi.ins; e.rel = mi.rel; e.cvt = !!mi.cvt; e.modelAlert = mi.alert || null;
+    e.repair = mi.repair; e.dep = mi.dep; e.insF = mi.ins; e.rel = mi.rel; e.cvt = !!mi.cvt;
+    const alertOn = mi.alert && (!mi.alertYears || (c.year >= mi.alertYears[0] && c.year <= mi.alertYears[1]));
+    e.modelAlert = alertOn ? mi.alert : null;
     e.heavy = c.heavy ?? !!mi.heavy;
     e.theft = mi.theftBefore ? c.year < mi.theftBefore : false;
     e.unknownModel = mi.unknown;
@@ -100,7 +102,7 @@
     if (c.title === "rebuilt") e.alerts.push(["bad", "Título rebuilt/salvage: tuvo daño grave. Difícil de asegurar y de revender."]);
     if (c.accidents === "yes") e.alerts.push(["bad", "Accidente reportado: pedir el reporte completo y una inspección."]);
     if (e.theft) e.alerts.push(["warn", `${cap(c.make)} ${cap(c.model)} ${c.year} con llave puede no tener inmovilizador: exigir la actualización antirrobo y cotizar el seguro antes.`]);
-    if (mi.alert) e.alerts.push(["warn", mi.alert]);
+    if (alertOn) e.alerts.push(["warn", mi.alert]);
     if (e.unknownModel) e.alerts.push(["warn", "Modelo sin datos propios en la tabla: se usan promedios. Pide verificación completa."]);
     if (c.price > BUDGET_MAX) e.alerts.push(["warn", `Está ${fmt(c.price - BUDGET_MAX)} sobre el presupuesto de $15.000.`]);
     if (e.dist != null && e.dist > 40) e.alerts.push(["warn", `Queda lejos (~${e.dist} millas): suma un día de viaje y es difícil volver por garantía.`]);
